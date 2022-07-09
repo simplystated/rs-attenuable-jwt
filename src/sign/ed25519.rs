@@ -1,43 +1,19 @@
-use std::borrow::Cow;
-
 use base64::URL_SAFE_NO_PAD;
 use jsonwebtoken::EncodingKey;
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use serde::{ser::SerializeMap, Serialize};
 
-use super::{AttenuableJWT, KeyGen, PrivateKey, PublicKey, Result, SignedJWT};
+use crate::protocol::{AttenuationKeyGenerator, KeyUse, PrivateKey, PublicKey};
 
-impl<'a> AttenuableJWT<'a, EddsaKeyGen> {
-    /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the default [KeyGen].
-    /// Invariant: the private_attenuation_key must be the private key corresponding to the public key found in
-    /// `jwts.last().unwrap().claim("aky")`.
-    pub fn with(
-        jwts: Vec<SignedJWT>,
-        private_attenuation_key: <EddsaKeyGen as KeyGen>::Priv,
-    ) -> Self {
-        Self::with_keygen(Cow::Owned(EddsaKeyGen), jwts, private_attenuation_key)
-    }
+use super::Result;
 
-    /// Constructs a new AttenuableJWT with the given root_key and claims, using the default [KeyGen].
-    /// The `root_key` will be used to sign this initial JWT.
-    /// `claims` will be augmented with an `aky` claim containing the public counterpart to the `private_attenuation_key`
-    /// in the returned AttenuableJWT.
-    pub fn new<Claims: Serialize>(
-        root_key: &<EddsaKeyGen as KeyGen>::Priv,
-        claims: Claims,
-    ) -> Result<Self> {
-        Self::new_with_keygen(Cow::Owned(EddsaKeyGen), root_key, claims)
-    }
-}
+const EDDSA_ALGORITHM: &str = "EdDSA";
 
 #[derive(Clone)]
 struct EddsaKeyGen;
 
-impl KeyGen for EddsaKeyGen {
-    type Pub = Ed25519PublicKey;
-    type Priv = Ed25519PrivateKey;
-
-    fn generate_key(&self) -> Result<(Ed25519PublicKey, Ed25519PrivateKey)> {
+impl AttenuationKeyGenerator<Ed25519PublicKey, Ed25519PrivateKey> for EddsaKeyGen {
+    fn generate_attenuation_key(&self) -> Result<(Ed25519PublicKey, Ed25519PrivateKey)> {
         use ring::rand::SystemRandom;
 
         let rng = SystemRandom::new();
@@ -69,7 +45,7 @@ impl PrivateKey for Ed25519PrivateKey {
     }
 
     fn algorithm(&self) -> &str {
-        "EdDSA"
+        EDDSA_ALGORITHM
     }
 
     fn to_encoding_key(&self) -> Result<EncodingKey> {
@@ -78,14 +54,36 @@ impl PrivateKey for Ed25519PrivateKey {
 }
 
 struct Ed25519PublicKey {
+    key_id: String,
     x: Vec<u8>,
 }
 
-impl PublicKey for Ed25519PublicKey {}
+impl PublicKey for Ed25519PublicKey {
+    fn key_id(&self) -> &str {
+        &self.key_id
+    }
+
+    fn algorithm(&self) -> &str {
+        EDDSA_ALGORITHM
+    }
+
+    fn key_use(&self) -> KeyUse {
+        KeyUse::Signing
+    }
+
+    fn to_decoding_key(
+        &self,
+    ) -> std::result::Result<jsonwebtoken::DecodingKey, crate::verify::Error> {
+        todo!()
+    }
+}
 
 impl Ed25519PublicKey {
     fn new(x: Vec<u8>) -> Self {
-        Self { x }
+        Self {
+            key_id: "aky".to_owned(),
+            x,
+        }
     }
 }
 
