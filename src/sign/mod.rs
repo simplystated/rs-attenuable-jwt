@@ -2,7 +2,7 @@ use std::{borrow::Cow, str::FromStr};
 
 use jsonwebtoken::{Algorithm, Header};
 
-mod ed25519;
+pub mod ed25519;
 mod error;
 
 pub use error::Error;
@@ -14,9 +14,53 @@ use crate::protocol::{PrivateKey, SealedClaims, SignedJWT, SigningKeyManager};
 /// set of claims.
 ///
 /// ```
-/// let ajwt = AttenuableJWT::with(jwts, key);
-/// let attenuated = ajwt.attenuate(&[("allowed-service", "something")])
-/// let sealed = attenuated.seal();
+/// use std::{borrow::Cow, collections::HashMap};
+/// use attenuable_jwt::{protocol::{AttenuationKeyGenerator, SigningKeyManager}, sign::{ed25519, Error, AttenuableJWT}};
+///
+/// #[derive(Clone)]
+/// struct KeyManager;
+///
+/// impl AttenuationKeyGenerator<ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey> for KeyManager {
+///     fn generate_attenuation_key(
+///         &self,
+///     ) -> Result<(ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey), Error> {
+///         ed25519::EddsaKeyGen.generate_attenuation_key()
+///     }
+/// }
+///
+/// impl SigningKeyManager for KeyManager {
+///     type JWK = ed25519::JWK;
+///
+///     type PublicAttenuationKey = ed25519::Ed25519PublicKey;
+///
+///     type PrivateAttenuationKey = ed25519::Ed25519PrivateKey;
+///
+///     type PrivateRootKey = ed25519::Ed25519PrivateKey;
+///
+///     type Claims = std::collections::HashMap<String, String>;
+///
+///     fn jwk_for_public_attenuation_key(
+///         public_attenuation_key: &Self::PublicAttenuationKey,
+///     ) -> Self::JWK {
+///         public_attenuation_key.into()
+///     }
+/// }
+///
+/// let claims = {
+///     let mut claims = HashMap::new();
+///     claims.insert("sub".to_owned(), "itsme".to_owned());
+///     claims
+/// };
+/// let key_manager = KeyManager;
+/// let (pub_key, priv_key) = key_manager.generate_attenuation_key().unwrap();
+/// let ajwt: AttenuableJWT<'_, KeyManager> = AttenuableJWT::new_with_key_manager(Cow::Owned(key_manager), &priv_key, claims).unwrap();
+/// let attenuated_claims = {
+///     let mut claims = HashMap::new();
+///     claims.insert("aud".to_owned(), "restricted-audience".to_owned());
+///     claims
+/// };
+/// let attenuated = ajwt.attenuate(attenuated_claims).unwrap();
+/// let sealed = attenuated.seal(Some("my-issuer"), None, None, None).unwrap();
 /// ```
 pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
     key_manager: Cow<'a, SKM>,
@@ -25,7 +69,7 @@ pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
 }
 
 impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
-    /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the provided [super::SigningKeyManager].
+    /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the provided [crate::protocol::SigningKeyManager].
     /// Invariant: the private_attenuation_key must be the private key corresponding to the public key found in
     /// `jwts.last().unwrap().claim("aky")`.
     pub fn with_key_manager(
@@ -40,7 +84,7 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
         }
     }
 
-    /// Constructs a new AttenuableJWT with the given root_key and claims, using the provided [KeyGen].
+    /// Constructs a new AttenuableJWT with the given root_key and claims, using the provided [crate::protocol::AttenuationKeyGenerator].
     /// The `root_key` will be used to sign this initial JWT.
     /// `claims` will be augmented with an `aky` claim containing the public counterpart to the `private_attenuation_key`
     /// in the returned AttenuableJWT.
