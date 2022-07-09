@@ -1,7 +1,7 @@
 use base64::URL_SAFE_NO_PAD;
-use jsonwebtoken::EncodingKey;
+use jsonwebtoken::{DecodingKey, EncodingKey};
 use ring::signature::{Ed25519KeyPair, KeyPair};
-use serde::{ser::SerializeMap, Serialize};
+use serde::{Deserialize, Serialize};
 
 use crate::protocol::{AttenuationKeyGenerator, KeyUse, PrivateKey, PublicKey};
 
@@ -10,7 +10,7 @@ use super::Result;
 const EDDSA_ALGORITHM: &str = "EdDSA";
 
 #[derive(Clone)]
-struct EddsaKeyGen;
+pub struct EddsaKeyGen;
 
 impl AttenuationKeyGenerator<Ed25519PublicKey, Ed25519PrivateKey> for EddsaKeyGen {
     fn generate_attenuation_key(&self) -> Result<(Ed25519PublicKey, Ed25519PrivateKey)> {
@@ -25,7 +25,7 @@ impl AttenuationKeyGenerator<Ed25519PublicKey, Ed25519PrivateKey> for EddsaKeyGe
     }
 }
 
-struct Ed25519PrivateKey {
+pub struct Ed25519PrivateKey {
     key_id: &'static str,
     pkcs8_bytes: Vec<u8>,
 }
@@ -49,11 +49,13 @@ impl PrivateKey for Ed25519PrivateKey {
     }
 
     fn to_encoding_key(&self) -> Result<EncodingKey> {
-        Ok(EncodingKey::from_ec_pem(&self.pkcs8_bytes)?)
+        Ok(EncodingKey::from_ed_der(&self.pkcs8_bytes))
     }
 }
 
-struct Ed25519PublicKey {
+#[derive(Serialize, Clone)]
+#[serde(into = "JWK")]
+pub struct Ed25519PublicKey {
     key_id: String,
     x: Vec<u8>,
 }
@@ -74,7 +76,7 @@ impl PublicKey for Ed25519PublicKey {
     fn to_decoding_key(
         &self,
     ) -> std::result::Result<jsonwebtoken::DecodingKey, crate::verify::Error> {
-        todo!()
+        Ok(DecodingKey::from_ed_der(&self.x))
     }
 }
 
@@ -87,15 +89,27 @@ impl Ed25519PublicKey {
     }
 }
 
-impl Serialize for Ed25519PublicKey {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(3))?;
-        map.serialize_entry("kty", "OKP")?;
-        map.serialize_entry("crv", "Ed25519")?;
-        map.serialize_entry("x", &base64::encode_config(&self.x, URL_SAFE_NO_PAD))?;
-        map.end()
+#[derive(Clone, Serialize, Deserialize)]
+pub struct JWK {
+    kid: String,
+    kty: String,
+    crv: String,
+    x: String,
+}
+
+impl From<Ed25519PublicKey> for JWK {
+    fn from(k: Ed25519PublicKey) -> Self {
+        Self::from(&k)
+    }
+}
+
+impl From<&Ed25519PublicKey> for JWK {
+    fn from(k: &Ed25519PublicKey) -> Self {
+        JWK {
+            kid: k.key_id.clone(),
+            kty: "OKP".to_owned(),
+            crv: "Ed25519".to_owned(),
+            x: base64::encode_config(&k.x, URL_SAFE_NO_PAD),
+        }
     }
 }
