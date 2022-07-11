@@ -14,6 +14,8 @@ pub enum Error {
     MissingKey(Option<String>),
     #[error("malformed jwk for attenuation key")]
     MalformedAttenuationKeyJWK,
+    #[error("malformed jwk")]
+    MalformedJWK(#[from] base64::DecodeError),
 }
 
 pub type Result<R> = std::result::Result<R, Error>;
