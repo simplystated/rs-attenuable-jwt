@@ -8,14 +8,16 @@ mod error;
 pub use error::Error;
 use error::Result;
 
-use crate::protocol::{PrivateKey, SealedClaims, SignedJWT, SigningKeyManager};
+use crate::protocol::{
+    Audience, Issuer, PrivateKey, SealedClaims, SecondsSinceEpoch, SignedJWT, SigningKeyManager,
+};
 
 /// An AttenuableJWT carries a set of immutable claims but allows for the creation of a JWT with an attenuated
 /// set of claims.
 ///
 /// ```
 /// use std::{borrow::Cow, collections::HashMap};
-/// use attenuable_jwt::{protocol::{AttenuationKeyGenerator, SigningKeyManager}, sign::{ed25519, Error, AttenuableJWT}};
+/// use attenuable_jwt::{protocol::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer}, sign::{ed25519, Error, AttenuableJWT}};
 ///
 /// #[derive(Clone)]
 /// struct KeyManager;
@@ -60,7 +62,7 @@ use crate::protocol::{PrivateKey, SealedClaims, SignedJWT, SigningKeyManager};
 ///     claims
 /// };
 /// let attenuated = ajwt.attenuate(attenuated_claims).unwrap();
-/// let sealed = attenuated.seal(Some("my-issuer"), None, None, None).unwrap();
+/// let sealed = attenuated.seal(SecondsSinceEpoch(0), SecondsSinceEpoch(0), Some(Issuer("my-issuer".to_owned())), None).unwrap();
 /// ```
 pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
     key_manager: Cow<'a, SKM>,
@@ -136,10 +138,10 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     /// This JWT should be verified with the key in the `aky` claim of the final JWT in `jwts`.
     pub fn seal(
         &self,
-        issuer: Option<&str>,
-        audience: Option<&str>,
-        expiration: Option<u64>,
-        not_before: Option<u64>,
+        expiration: SecondsSinceEpoch,
+        not_before: SecondsSinceEpoch,
+        issuer: Option<Issuer>,
+        audience: Option<Audience>,
     ) -> Result<SignedJWT> {
         let header = {
             let mut header = Header::new(Algorithm::from_str(
@@ -150,8 +152,8 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
         };
         let claims = SealedClaims {
             jwts: self.jwts.clone(),
-            exp: expiration,
-            nbf: not_before,
+            exp: Some(expiration),
+            nbf: Some(not_before),
             iss: issuer.map(|iss| iss.to_owned()),
             aud: audience.map(|aud| aud.to_owned()),
         };

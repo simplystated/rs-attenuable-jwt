@@ -16,11 +16,35 @@ impl AsRef<str> for SignedJWT {
 
 #[derive(Serialize, Deserialize)]
 pub struct SealedClaims {
-    pub exp: Option<u64>,
-    pub nbf: Option<u64>,
-    pub iss: Option<String>,
-    pub aud: Option<String>,
+    pub exp: Option<SecondsSinceEpoch>,
+    pub nbf: Option<SecondsSinceEpoch>,
+    pub iss: Option<Issuer>,
+    pub aud: Option<Audience>,
     pub jwts: Vec<SignedJWT>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SecondsSinceEpoch(pub u64);
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Issuer(pub String);
+
+impl AsRef<str> for Issuer {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Audience(pub String);
+
+impl AsRef<str> for Audience {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
 }
 
 /// A private key
