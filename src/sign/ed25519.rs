@@ -7,7 +7,7 @@ use crate::protocol::{AttenuationKeyGenerator, KeyUse, PrivateKey, PublicKey};
 
 use super::Result;
 
-const EDDSA_ALGORITHM: &str = "EdDSA";
+pub const EDDSA_ALGORITHM: &str = "EdDSA";
 
 #[derive(Clone)]
 pub struct EddsaKeyGen;
@@ -111,5 +111,16 @@ impl From<&Ed25519PublicKey> for JWK {
             crv: "Ed25519".to_owned(),
             x: base64::encode_config(&k.x, URL_SAFE_NO_PAD),
         }
+    }
+}
+
+impl TryFrom<&JWK> for Ed25519PublicKey {
+    type Error = crate::verify::Error;
+
+    fn try_from(jwk: &JWK) -> std::result::Result<Self, Self::Error> {
+        Ok(Ed25519PublicKey {
+            key_id: jwk.kid.clone(),
+            x: base64::decode_config(&jwk.x, URL_SAFE_NO_PAD)?,
+        })
     }
 }
