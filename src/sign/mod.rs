@@ -37,7 +37,7 @@ use crate::protocol::{PrivateKey, SealedClaims, SignedJWT, SigningKeyManager};
 ///
 ///     type PrivateRootKey = ed25519::Ed25519PrivateKey;
 ///
-///     type Claims = std::collections::HashMap<String, String>;
+///     type Claims = HashMap<String, String>;
 ///
 ///     fn jwk_for_public_attenuation_key(
 ///         public_attenuation_key: &Self::PublicAttenuationKey,
@@ -138,8 +138,8 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
         &self,
         issuer: Option<&str>,
         audience: Option<&str>,
-        expiration: Option<f64>,
-        not_before: Option<f64>,
+        expiration: Option<u64>,
+        not_before: Option<u64>,
     ) -> Result<SignedJWT> {
         let header = {
             let mut header = Header::new(Algorithm::from_str(

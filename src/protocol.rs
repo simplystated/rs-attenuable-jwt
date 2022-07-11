@@ -16,8 +16,8 @@ impl AsRef<str> for SignedJWT {
 
 #[derive(Serialize, Deserialize)]
 pub struct SealedClaims {
-    pub exp: Option<f64>,
-    pub nbf: Option<f64>,
+    pub exp: Option<u64>,
+    pub nbf: Option<u64>,
     pub iss: Option<String>,
     pub aud: Option<String>,
     pub jwts: Vec<SignedJWT>,
