@@ -109,7 +109,7 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 ///         HashMap::new()
 ///     }
 ///
-///     fn jwk_to_public_attenuation_key(jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey> {
+///     fn jwk_to_public_attenuation_key(&self, jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey> {
 ///         jwk.try_into().ok()
 ///     }
 /// }
@@ -143,7 +143,8 @@ pub fn verify<VKM: VerificationKeyManager + 'static, ClaimResolver>(
 where
     ClaimResolver: Fn(VKM::Claims, VKM::Claims) -> VKM::Claims,
 {
-    let envelope_key: VKM::PublicAttenuationKey = final_attenuation_key::<VKM>(jwt)?;
+    let envelope_key: VKM::PublicAttenuationKey =
+        final_attenuation_key(&verification_key_manager, jwt)?;
     let header = decode_header(jwt)?;
     let kid_matches = header
         .kid
@@ -165,18 +166,18 @@ where
     let jwts = token.claims.jwts;
 
     let default_claims = verification_key_manager.default_claims();
-    let get_root_key = Box::new(
-        move |kid| match verification_key_manager.get_root_key(&kid) {
-            None => None,
-            Some(rk) => Some(Box::new(rk) as Box<dyn PublicKey>),
-        },
-    ) as GetKeyFn;
+    let vkm = verification_key_manager.clone(); // TODO: this is silly
+    let get_root_key = Box::new(move |kid| match vkm.get_root_key(&kid) {
+        None => None,
+        Some(rk) => Some(Box::new(rk) as Box<dyn PublicKey>),
+    }) as GetKeyFn;
     let (_, claims) = jwts.into_iter().fold(
         Ok((get_root_key, default_claims)),
         |accumulated, jwt| -> Result<(_, VKM::Claims)> {
             let (get_key, acc) = accumulated?;
             let full_claims = decode_inner_jwt::<VKM>(jwt.as_ref(), get_key)?;
-            let next_pub_key = VKM::jwk_to_public_attenuation_key(&full_claims.aky);
+            let next_pub_key =
+                verification_key_manager.jwk_to_public_attenuation_key(&full_claims.aky);
             let get_key = Box::new(move |kid: Option<String>| {
                 next_pub_key.and_then(|p| {
                     let kids_match = kid.as_ref().map(|kid| kid == p.key_id()).unwrap_or(true);
@@ -195,6 +196,7 @@ where
 }
 
 fn final_attenuation_key<VKM: VerificationKeyManager>(
+    verification_key_manager: &VKM,
     jwt: &str,
 ) -> Result<VKM::PublicAttenuationKey> {
     let claims: SealedClaims = insecurely_extract_claims(jwt)?;
@@ -203,13 +205,17 @@ fn final_attenuation_key<VKM: VerificationKeyManager>(
         .jwts
         .last()
         .ok_or_else(|| Error::MissingFinalAttenuationKey)
-        .and_then(|jwt| extract_aky::<VKM>(jwt.as_ref()))?)
+        .and_then(|jwt| extract_aky(verification_key_manager, jwt.as_ref()))?)
 }
 
-fn extract_aky<VKM: VerificationKeyManager>(jwt: &str) -> Result<VKM::PublicAttenuationKey> {
+fn extract_aky<VKM: VerificationKeyManager>(
+    verification_key_manager: &VKM,
+    jwt: &str,
+) -> Result<VKM::PublicAttenuationKey> {
     let claims: FullClaims<VKM::JWK, VKM::PublicAttenuationKey, HashMap<String, String>> =
         insecurely_extract_claims(jwt)?;
-    Ok(VKM::jwk_to_public_attenuation_key(&claims.aky)
+    Ok(verification_key_manager
+        .jwk_to_public_attenuation_key(&claims.aky)
         .ok_or_else(|| Error::MalformedAttenuationKeyJWK)?)
 }
 
@@ -294,4 +300,148 @@ fn validation_config(reqs: VerificationRequirements) -> Result<Validation> {
         .collect::<std::result::Result<_, _>>()?;
 
     Ok(v)
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        protocol::{
+            AttenuationKeyGenerator, Issuer, SecondsSinceEpoch, SignedJWT, SigningKeyManager,
+            VerificationKeyManager, VerificationRequirements,
+        },
+        sign::{ed25519, AttenuableJWT, Error as SignError},
+        verify::Error,
+    };
+    use mockall::mock;
+    use std::{
+        borrow::Cow,
+        collections::HashMap,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use super::verify;
+
+    mock! {
+        KeyManager {}
+
+        impl VerificationKeyManager for KeyManager {
+            type PublicRootKey = ed25519::Ed25519PublicKey;
+
+            type PublicAttenuationKey = ed25519::Ed25519PublicKey;
+
+            type PrivateAttenuationKey = ed25519::Ed25519PrivateKey;
+
+            type Claims = std::collections::HashMap<String, String>;
+
+            type JWK = ed25519::JWK;
+
+            fn get_root_key(&self, key_id: &Option<String>) -> Option<<MockKeyManager as VerificationKeyManager>::PublicRootKey>;
+            fn get_root_verification_requirements(&self) -> VerificationRequirements;
+            fn default_claims(&self) -> <MockKeyManager as VerificationKeyManager>::Claims;
+            fn jwk_to_public_attenuation_key(&self, jwk: &<MockKeyManager as VerificationKeyManager>::JWK) -> Option<<MockKeyManager as VerificationKeyManager>::PublicAttenuationKey>;
+        }
+
+        impl Clone for KeyManager {
+            fn clone(&self) -> Self;
+        }
+    }
+
+    #[test]
+    fn test_missing_root_key() {
+        fn make_key_manager() -> MockKeyManager {
+            let mut key_manager = MockKeyManager::new();
+            key_manager
+                .expect_jwk_to_public_attenuation_key()
+                .returning(|jwk| jwk.try_into().ok());
+            key_manager
+                .expect_get_root_verification_requirements()
+                .returning(|| VerificationRequirements {
+                    acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
+                    acceptable_issuers: Some(vec![Issuer("my-issuer".to_owned())]),
+                    acceptable_audiences: None,
+                    acceptable_subjects: None,
+                });
+            key_manager
+                .expect_default_claims()
+                .returning(|| Default::default());
+            key_manager.expect_clone().returning(|| make_key_manager());
+            key_manager.expect_get_root_key().returning(|_| None);
+            key_manager
+        }
+
+        let (_, jwt) = generate_attenuated_jwt();
+        let key_manager = make_key_manager();
+        let err = verify(key_manager, jwt.as_ref(), |mut c1, c2| {
+            c1.extend(c2);
+            c1
+        });
+
+        if let Error::MissingKey(Some(kid)) = err.expect_err("should have failed") {
+            assert_eq!(kid, "aky");
+        } else {
+            assert!(false);
+        }
+    }
+
+    fn generate_attenuated_jwt() -> (ed25519::Ed25519PublicKey, SignedJWT) {
+        #[derive(Clone)]
+        struct KeyManager;
+
+        impl AttenuationKeyGenerator<ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey> for KeyManager {
+            fn generate_attenuation_key(
+                &self,
+            ) -> Result<(ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey), SignError>
+            {
+                ed25519::EddsaKeyGen.generate_attenuation_key()
+            }
+        }
+
+        impl SigningKeyManager for KeyManager {
+            type JWK = ed25519::JWK;
+
+            type PublicAttenuationKey = ed25519::Ed25519PublicKey;
+
+            type PrivateAttenuationKey = ed25519::Ed25519PrivateKey;
+
+            type PrivateRootKey = ed25519::Ed25519PrivateKey;
+
+            type Claims = HashMap<String, String>;
+
+            fn jwk_for_public_attenuation_key(
+                public_attenuation_key: &Self::PublicAttenuationKey,
+            ) -> Self::JWK {
+                public_attenuation_key.into()
+            }
+        }
+
+        let claims = {
+            let mut claims = HashMap::new();
+            claims.insert("sub".to_owned(), "itsme".to_owned());
+            claims
+        };
+        let key_manager = KeyManager;
+        let (pub_key, priv_key) = key_manager.generate_attenuation_key().unwrap();
+        let ajwt: AttenuableJWT<'_, KeyManager> =
+            AttenuableJWT::new_with_key_manager(Cow::Owned(key_manager), &priv_key, claims)
+                .unwrap();
+        let attenuated_claims = {
+            let mut claims = HashMap::new();
+            claims.insert("aud".to_owned(), "restricted-audience".to_owned());
+            claims
+        };
+        let attenuated = ajwt.attenuate(attenuated_claims).unwrap();
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let jwt = attenuated
+            .seal(
+                SecondsSinceEpoch(current_time + 60),
+                SecondsSinceEpoch(current_time),
+                Some(Issuer("my-issuer".to_owned())),
+                None,
+            )
+            .unwrap();
+        (pub_key, jwt)
+    }
 }

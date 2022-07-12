@@ -80,7 +80,7 @@ pub trait VerificationKeyManager: Clone {
     fn get_root_key(&self, key_id: &Option<String>) -> Option<Self::PublicRootKey>;
     fn get_root_verification_requirements(&self) -> VerificationRequirements;
     fn default_claims(&self) -> Self::Claims;
-    fn jwk_to_public_attenuation_key(jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey>;
+    fn jwk_to_public_attenuation_key(&self, jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey>;
 }
 
 pub struct VerificationRequirements {

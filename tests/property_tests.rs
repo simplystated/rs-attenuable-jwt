@@ -129,7 +129,7 @@ impl VerificationKeyManager for VerifyKeyManager {
         HashMap::new()
     }
 
-    fn jwk_to_public_attenuation_key(jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey> {
+    fn jwk_to_public_attenuation_key(&self, jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey> {
         jwk.try_into().ok()
     }
 }
