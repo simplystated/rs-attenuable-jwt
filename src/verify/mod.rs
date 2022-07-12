@@ -96,10 +96,10 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 ///         }
 ///     }
 ///
-///     fn get_root_verification_requirements<'a>(&'a self) -> VerificationRequirements<'a> {
+///     fn get_root_verification_requirements(&self) -> VerificationRequirements {
 ///         VerificationRequirements {
-///             acceptable_algorithms: &[ed25519::EDDSA_ALGORITHM],
-///             acceptable_issuers: Some(&["my-issuer"]),
+///             acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
+///             acceptable_issuers: Some(vec![Issuer("my-issuer".to_owned())]),
 ///             acceptable_audiences: None,
 ///             acceptable_subjects: None,
 ///         }
@@ -141,7 +141,7 @@ pub fn verify<VKM: VerificationKeyManager + 'static, ClaimResolver>(
     resolve_claims: ClaimResolver,
 ) -> Result<VKM::Claims>
 where
-    ClaimResolver: Fn(VKM::Claims, &VKM::Claims) -> VKM::Claims,
+    ClaimResolver: Fn(VKM::Claims, VKM::Claims) -> VKM::Claims,
 {
     let envelope_key: VKM::PublicAttenuationKey = final_attenuation_key::<VKM>(jwt)?;
     let header = decode_header(jwt)?;
@@ -187,7 +187,7 @@ where
                     }
                 })
             }) as GetKeyFn;
-            let accumulated = resolve_claims(acc, &full_claims.user_provided_claims);
+            let accumulated = resolve_claims(acc, full_claims.user_provided_claims);
             Ok((get_key, accumulated))
         },
     )?;
@@ -270,15 +270,23 @@ fn validation_config(reqs: VerificationRequirements) -> Result<Validation> {
 
     let mut v = Validation::default();
     v.set_required_spec_claims(required_spec_claims.as_slice());
-    reqs.acceptable_issuers
-        .as_ref()
-        .map(|iss| v.set_issuer(iss));
-    reqs.acceptable_audiences
-        .as_ref()
-        .map(|aud| v.set_audience(aud));
-    reqs.acceptable_subjects
-        .as_ref()
-        .map(|sub| v.sub = Some(sub.to_string()));
+    reqs.acceptable_issuers.as_ref().map(|iss| {
+        v.set_issuer(
+            iss.into_iter()
+                .map(|i| i.as_ref())
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
+    });
+    reqs.acceptable_audiences.as_ref().map(|iss| {
+        v.set_audience(
+            iss.into_iter()
+                .map(|a| a.as_ref())
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
+    });
+    reqs.acceptable_subjects.map(|sub| v.sub = Some(sub));
     v.algorithms = reqs
         .acceptable_algorithms
         .iter()

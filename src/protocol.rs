@@ -78,16 +78,16 @@ pub trait VerificationKeyManager: Clone {
     type JWK: Serialize + DeserializeOwned;
 
     fn get_root_key(&self, key_id: &Option<String>) -> Option<Self::PublicRootKey>;
-    fn get_root_verification_requirements<'a>(&'a self) -> VerificationRequirements<'a>;
+    fn get_root_verification_requirements(&self) -> VerificationRequirements;
     fn default_claims(&self) -> Self::Claims;
     fn jwk_to_public_attenuation_key(jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey>;
 }
 
-pub struct VerificationRequirements<'a> {
-    pub acceptable_algorithms: &'a [&'a str],
-    pub acceptable_issuers: Option<&'a [&'a str]>,
-    pub acceptable_audiences: Option<&'a [&'a str]>,
-    pub acceptable_subjects: Option<&'a str>,
+pub struct VerificationRequirements {
+    pub acceptable_algorithms: Vec<String>,
+    pub acceptable_issuers: Option<Vec<Issuer>>,
+    pub acceptable_audiences: Option<Vec<Audience>>,
+    pub acceptable_subjects: Option<String>,
 }
 
 pub trait SigningKeyManager:
