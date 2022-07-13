@@ -389,35 +389,15 @@ mod test {
         )
         .unwrap();
 
-        fn make_key_manager(
-            correct_envelope_pub_key: &ed25519::Ed25519PublicKey,
-        ) -> MockKeyManager {
+        fn make_key_manager() -> MockKeyManager {
             let mut key_manager = MockKeyManager::new();
             key_manager
                 .expect_jwk_to_public_attenuation_key()
                 .returning(|jwk| jwk.try_into().ok());
             key_manager
-                .expect_get_root_verification_requirements()
-                .returning(|| VerificationRequirements {
-                    acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
-                    acceptable_issuers: Some(vec![Issuer("my-issuer".to_owned())]),
-                    acceptable_audiences: None,
-                    acceptable_subjects: None,
-                });
-            key_manager
-                .expect_default_claims()
-                .returning(|| Default::default());
-            let pk = correct_envelope_pub_key.clone();
-            key_manager
-                .expect_clone()
-                .returning(move || make_key_manager(&pk));
-            key_manager
-                .expect_get_root_key()
-                .return_const(Some(correct_envelope_pub_key.clone()));
-            key_manager
         }
 
-        let key_manager = make_key_manager(&correct_envelope_pub_key);
+        let key_manager = make_key_manager();
         let err = verify(key_manager, &token, |mut c1, c2| {
             c1.extend(c2);
             c1
