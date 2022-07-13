@@ -306,7 +306,7 @@ fn validation_config(reqs: VerificationRequirements) -> Result<Validation> {
 mod test {
     use crate::{
         protocol::{
-            AttenuationKeyGenerator, Issuer, PrivateKey, SealedClaims,
+            AttenuationKeyGenerator, FullClaims, Issuer, PrivateKey, SealedClaims,
             SecondsSinceEpoch, SignedJWT, SigningKeyManager, VerificationKeyManager,
             VerificationRequirements,
         },
@@ -346,6 +346,87 @@ mod test {
         impl Clone for KeyManager {
             fn clone(&self) -> Self;
         }
+    }
+
+    #[test]
+    fn test_wrong_envelope_key() {
+        let (correct_envelope_pub_key, _) = SignKeyManager.generate_attenuation_key().unwrap();
+
+        let (_, inner_priv_key) = SignKeyManager.generate_attenuation_key().unwrap();
+        let inner_header = jsonwebtoken::Header::new(
+            jsonwebtoken::Algorithm::from_str(&inner_priv_key.algorithm()).unwrap(),
+        );
+        let inner_claims: FullClaims<
+            ed25519::JWK,
+            ed25519::Ed25519PublicKey,
+            HashMap<String, String>,
+        > = FullClaims::new(
+            Default::default(),
+            ed25519::JWK::from(&correct_envelope_pub_key),
+        );
+        let inner_jwt = jsonwebtoken::encode(
+            &inner_header,
+            &inner_claims,
+            &inner_priv_key.to_encoding_key().unwrap(),
+        )
+        .unwrap();
+
+        let (_, incorrect_envelope_priv_key) = SignKeyManager.generate_attenuation_key().unwrap();
+        let header = jsonwebtoken::Header::new(
+            jsonwebtoken::Algorithm::from_str(&incorrect_envelope_priv_key.algorithm()).unwrap(),
+        );
+        let full_claims = SealedClaims {
+            exp: None,
+            nbf: None,
+            iss: Some(Issuer("my-issuer".to_owned())),
+            aud: None,
+            jwts: vec![SignedJWT(inner_jwt)],
+        };
+        let token = jsonwebtoken::encode(
+            &header,
+            &full_claims,
+            &incorrect_envelope_priv_key.to_encoding_key().unwrap(),
+        )
+        .unwrap();
+
+        fn make_key_manager(
+            correct_envelope_pub_key: &ed25519::Ed25519PublicKey,
+        ) -> MockKeyManager {
+            let mut key_manager = MockKeyManager::new();
+            key_manager
+                .expect_jwk_to_public_attenuation_key()
+                .returning(|jwk| jwk.try_into().ok());
+            key_manager
+                .expect_get_root_verification_requirements()
+                .returning(|| VerificationRequirements {
+                    acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
+                    acceptable_issuers: Some(vec![Issuer("my-issuer".to_owned())]),
+                    acceptable_audiences: None,
+                    acceptable_subjects: None,
+                });
+            key_manager
+                .expect_default_claims()
+                .returning(|| Default::default());
+            let pk = correct_envelope_pub_key.clone();
+            key_manager
+                .expect_clone()
+                .returning(move || make_key_manager(&pk));
+            key_manager
+                .expect_get_root_key()
+                .return_const(Some(correct_envelope_pub_key.clone()));
+            key_manager
+        }
+
+        let key_manager = make_key_manager(&correct_envelope_pub_key);
+        let err = verify(key_manager, &token, |mut c1, c2| {
+            c1.extend(c2);
+            c1
+        });
+
+        assert!(matches!(
+            err.expect_err("should have failed"),
+            Error::InvalidEnvelopeKey,
+        ));
     }
 
     #[test]
