@@ -4,7 +4,7 @@ name: CI
 
 jobs:
   build:
-    name: Test
+    name: Build
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,7 +32,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --target="${{ matrix.target }}"
+          args: --release --target=${{ matrix.target }}
   test:
     name: Test
     runs-on: ubuntu-latest
