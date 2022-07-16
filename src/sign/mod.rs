@@ -48,21 +48,24 @@ use crate::protocol::{
 ///     }
 /// }
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let claims = {
 ///     let mut claims = HashMap::new();
 ///     claims.insert("sub".to_owned(), "itsme".to_owned());
 ///     claims
 /// };
 /// let key_manager = KeyManager;
-/// let (pub_key, priv_key) = key_manager.generate_attenuation_key().unwrap();
-/// let ajwt: AttenuableJWT<'_, KeyManager> = AttenuableJWT::new_with_key_manager(Cow::Owned(key_manager), &priv_key, claims).unwrap();
+/// let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
+/// let ajwt: AttenuableJWT<'_, KeyManager> = AttenuableJWT::new_with_key_manager(Cow::Owned(key_manager), &priv_key, claims)?;
 /// let attenuated_claims = {
 ///     let mut claims = HashMap::new();
 ///     claims.insert("aud".to_owned(), "restricted-audience".to_owned());
 ///     claims
 /// };
-/// let attenuated = ajwt.attenuate(attenuated_claims).unwrap();
-/// let sealed = attenuated.seal(SecondsSinceEpoch(0), SecondsSinceEpoch(0), Some(Issuer("my-issuer".to_owned())), None).unwrap();
+/// let attenuated = ajwt.attenuate(attenuated_claims)?;
+/// let sealed = attenuated.seal(SecondsSinceEpoch(0), SecondsSinceEpoch(0), Some(Issuer("my-issuer".to_owned())), None)?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
     key_manager: Cow<'a, SKM>,

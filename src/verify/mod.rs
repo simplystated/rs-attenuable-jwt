@@ -20,7 +20,7 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 /// use attenuable_jwt::{protocol::{SignedJWT, PublicKey, VerificationRequirements, VerificationKeyManager, SecondsSinceEpoch, Issuer}, sign::ed25519, verify::verify};
 /// use std::collections::HashMap;
 ///
-/// # fn generate_attenuated_jwt() -> (ed25519::Ed25519PublicKey, SignedJWT) {
+/// # fn generate_attenuated_jwt() -> Result<(ed25519::Ed25519PublicKey, SignedJWT), Box<dyn std::error::Error>> {
 /// #   use std::{borrow::Cow, collections::HashMap, time::{SystemTime, UNIX_EPOCH}};
 /// #   use attenuable_jwt::{protocol::{AttenuationKeyGenerator, SigningKeyManager}, sign::{ed25519, Error, AttenuableJWT}};
 /// #
@@ -59,17 +59,17 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 /// #       claims
 /// #   };
 /// #   let key_manager = KeyManager;
-/// #   let (pub_key, priv_key) = key_manager.generate_attenuation_key().unwrap();
-/// #   let ajwt: AttenuableJWT<'_, KeyManager> = AttenuableJWT::new_with_key_manager(Cow::Owned(key_manager), &priv_key, claims).unwrap();
+/// #   let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
+/// #   let ajwt: AttenuableJWT<'_, KeyManager> = AttenuableJWT::new_with_key_manager(Cow::Owned(key_manager), &priv_key, claims)?;
 /// #   let attenuated_claims = {
 /// #       let mut claims = HashMap::new();
 /// #       claims.insert("aud".to_owned(), "restricted-audience".to_owned());
 /// #       claims
 /// #   };
-/// #   let attenuated = ajwt.attenuate(attenuated_claims).unwrap();
-/// #   let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-/// #   let jwt = attenuated.seal(SecondsSinceEpoch(current_time + 60), SecondsSinceEpoch(current_time), Some(Issuer("my-issuer".to_owned())), None).unwrap();
-/// #   (pub_key, jwt)
+/// #   let attenuated = ajwt.attenuate(attenuated_claims)?;
+/// #   let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+/// #   let jwt = attenuated.seal(SecondsSinceEpoch(current_time + 60), SecondsSinceEpoch(current_time), Some(Issuer("my-issuer".to_owned())), None)?;
+/// #   Ok((pub_key, jwt))
 /// # }
 ///
 /// #[derive(Clone)]
@@ -114,7 +114,8 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 ///     }
 /// }
 ///
-/// let (pub_root_key, attenuated_jwt) = generate_attenuated_jwt();
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let (pub_root_key, attenuated_jwt) = generate_attenuated_jwt()?;
 /// let key_manager = KeyManager {
 ///     pub_root_key,
 /// };
@@ -128,11 +129,13 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 ///             .chain(c1.into_iter())
 ///             .collect()
 ///     }
-/// ).unwrap();
+/// )?;
 /// let sub = claims.get("sub").unwrap();
 /// assert_eq!(sub, "itsme");
 /// let aud = claims.get("aud").unwrap();
 /// assert_eq!(aud, "restricted-audience");
+/// # Ok(())
+/// # }
 ///
 /// ```
 pub fn verify<VKM: VerificationKeyManager + 'static, ClaimResolver>(
@@ -306,7 +309,7 @@ fn validation_config(reqs: VerificationRequirements) -> Result<Validation> {
 mod test {
     use crate::{
         protocol::{
-            AttenuationKeyGenerator, FullClaims, Issuer, PrivateKey, PublicKey, SealedClaims,
+            AttenuationKeyGenerator, FullClaims, Issuer, PrivateKey, SealedClaims,
             SecondsSinceEpoch, SignedJWT, SigningKeyManager, VerificationKeyManager,
             VerificationRequirements,
         },
@@ -353,39 +356,37 @@ mod test {
         }
     }
 
+    type Result<R> = std::result::Result<R, Box<dyn std::error::Error>>;
+
     fn make_inner_jwt<SignWith: PrivateKey, NextKeyJWK: Serialize>(
         sign_with: SignWith,
         next_key_jwk: NextKeyJWK,
-    ) -> SignedJWT {
+    ) -> Result<SignedJWT> {
         let header = {
-            let mut header = jsonwebtoken::Header::new(
-                jsonwebtoken::Algorithm::from_str(&sign_with.algorithm()).unwrap(),
-            );
+            let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::from_str(
+                &sign_with.algorithm(),
+            )?);
             header.kid = Some(sign_with.key_id().to_owned());
             header
         };
         let claims: FullClaims<NextKeyJWK, ed25519::Ed25519PublicKey, HashMap<String, String>> =
             FullClaims::new(Default::default(), next_key_jwk);
-        let inner_jwt =
-            jsonwebtoken::encode(&header, &claims, &sign_with.to_encoding_key().unwrap()).unwrap();
-        SignedJWT(inner_jwt)
+        let inner_jwt = jsonwebtoken::encode(&header, &claims, &sign_with.to_encoding_key()?)?;
+        Ok(SignedJWT(inner_jwt))
     }
 
     fn make_envelope_jwt<SignWith: PrivateKey>(
         sign_with: SignWith,
         inner_jwts: Vec<SignedJWT>,
-    ) -> SignedJWT {
+    ) -> Result<SignedJWT> {
         let header = {
-            let mut header = jsonwebtoken::Header::new(
-                jsonwebtoken::Algorithm::from_str(&sign_with.algorithm()).unwrap(),
-            );
+            let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::from_str(
+                &sign_with.algorithm(),
+            )?);
             header.kid = Some(sign_with.key_id().to_owned());
             header
         };
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         let full_claims = SealedClaims {
             exp: Some(SecondsSinceEpoch(current_time + 60)),
             nbf: Some(SecondsSinceEpoch(current_time)),
@@ -393,25 +394,22 @@ mod test {
             aud: None,
             jwts: inner_jwts,
         };
-        let token =
-            jsonwebtoken::encode(&header, &full_claims, &sign_with.to_encoding_key().unwrap())
-                .unwrap();
-        SignedJWT(token)
+        let token = jsonwebtoken::encode(&header, &full_claims, &sign_with.to_encoding_key()?)?;
+        Ok(SignedJWT(token))
     }
 
     #[test]
-    fn test_wrong_aky_chain() {
-        let (envelope_pub_key, envelope_priv_key) =
-            SignKeyManager.generate_attenuation_key().unwrap();
-        let (correct_inner2_pub_key, _) = SignKeyManager.generate_attenuation_key().unwrap();
-        let (_, wrong_inner2_priv_key) = SignKeyManager.generate_attenuation_key().unwrap();
+    fn test_wrong_aky_chain() -> Result<()> {
+        let (envelope_pub_key, envelope_priv_key) = SignKeyManager.generate_attenuation_key()?;
+        let (correct_inner2_pub_key, _) = SignKeyManager.generate_attenuation_key()?;
+        let (_, wrong_inner2_priv_key) = SignKeyManager.generate_attenuation_key()?;
 
-        let (_, inner1_priv_key) = SignKeyManager.generate_attenuation_key().unwrap();
+        let (_, inner1_priv_key) = SignKeyManager.generate_attenuation_key()?;
 
-        let inner1 = make_inner_jwt(inner1_priv_key, ed25519::JWK::from(&correct_inner2_pub_key));
-        let inner2 = make_inner_jwt(wrong_inner2_priv_key, ed25519::JWK::from(&envelope_pub_key));
+        let inner1 = make_inner_jwt(inner1_priv_key, ed25519::JWK::from(&correct_inner2_pub_key))?;
+        let inner2 = make_inner_jwt(wrong_inner2_priv_key, ed25519::JWK::from(&envelope_pub_key))?;
 
-        let token = make_envelope_jwt(envelope_priv_key, vec![inner1, inner2]);
+        let token = make_envelope_jwt(envelope_priv_key, vec![inner1, inner2])?;
 
         fn make_key_manager(root_key: Ed25519PublicKey) -> MockKeyManager {
             let mut key_manager = MockKeyManager::new();
@@ -449,20 +447,22 @@ mod test {
             err.expect_err("should have failed"),
             Error::JWTError(_),
         ));
+
+        Ok(())
     }
 
     #[test]
-    fn test_wrong_envelope_key() {
-        let (correct_envelope_pub_key, _) = SignKeyManager.generate_attenuation_key().unwrap();
-        let (_, incorrect_envelope_priv_key) = SignKeyManager.generate_attenuation_key().unwrap();
-        let (_, inner_priv_key) = SignKeyManager.generate_attenuation_key().unwrap();
+    fn test_wrong_envelope_key() -> Result<()> {
+        let (correct_envelope_pub_key, _) = SignKeyManager.generate_attenuation_key()?;
+        let (_, incorrect_envelope_priv_key) = SignKeyManager.generate_attenuation_key()?;
+        let (_, inner_priv_key) = SignKeyManager.generate_attenuation_key()?;
 
         let inner_jwt = make_inner_jwt(
             inner_priv_key,
             ed25519::JWK::from(&correct_envelope_pub_key),
-        );
+        )?;
 
-        let token = make_envelope_jwt(incorrect_envelope_priv_key, vec![inner_jwt]);
+        let token = make_envelope_jwt(incorrect_envelope_priv_key, vec![inner_jwt])?;
 
         fn make_key_manager() -> MockKeyManager {
             let mut key_manager = MockKeyManager::new();
@@ -490,15 +490,17 @@ mod test {
             err.expect_err("should have failed"),
             Error::JWTError(_),
         ));
+
+        Ok(())
     }
 
     #[test]
-    fn test_bad_envelope_kid() {
-        let (_, root_priv_key) = SignKeyManager.generate_attenuation_key().unwrap();
+    fn test_bad_envelope_kid() -> Result<()> {
+        let (_, root_priv_key) = SignKeyManager.generate_attenuation_key()?;
         let header = {
-            let mut header = jsonwebtoken::Header::new(
-                jsonwebtoken::Algorithm::from_str(&root_priv_key.algorithm()).unwrap(),
-            );
+            let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::from_str(
+                &root_priv_key.algorithm(),
+            )?);
             header.kid = Some("wrong".to_owned());
             header
         };
@@ -509,12 +511,7 @@ mod test {
             aud: None,
             jwts: Default::default(),
         };
-        let token = jsonwebtoken::encode(
-            &header,
-            &full_claims,
-            &root_priv_key.to_encoding_key().unwrap(),
-        )
-        .unwrap();
+        let token = jsonwebtoken::encode(&header, &full_claims, &root_priv_key.to_encoding_key()?)?;
 
         let key_manager = MockKeyManager::new();
         let err = verify(key_manager, &token, |mut c1, c2| {
@@ -526,26 +523,23 @@ mod test {
             err.expect_err("should have failed"),
             Error::MissingFinalAttenuationKey
         ));
+
+        Ok(())
     }
 
     #[test]
-    fn test_missing_jwts_claim() {
-        let (_, root_priv_key) = SignKeyManager.generate_attenuation_key().unwrap();
+    fn test_missing_jwts_claim() -> Result<()> {
+        let (_, root_priv_key) = SignKeyManager.generate_attenuation_key()?;
         let header = {
-            let mut header = jsonwebtoken::Header::new(
-                jsonwebtoken::Algorithm::from_str(&root_priv_key.algorithm()).unwrap(),
-            );
+            let mut header = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::from_str(
+                &root_priv_key.algorithm(),
+            )?);
             header.kid = Some(root_priv_key.key_id().to_owned());
             header
         };
         // no jwts claim
         let full_claims: HashMap<String, String> = Default::default();
-        let token = jsonwebtoken::encode(
-            &header,
-            &full_claims,
-            &root_priv_key.to_encoding_key().unwrap(),
-        )
-        .unwrap();
+        let token = jsonwebtoken::encode(&header, &full_claims, &root_priv_key.to_encoding_key()?)?;
 
         let key_manager = MockKeyManager::new();
         let err = verify(key_manager, &token, |mut c1, c2| {
@@ -557,6 +551,8 @@ mod test {
             err.expect_err("should have failed"),
             Error::JWTError(_)
         ));
+
+        Ok(())
     }
 
     #[test]
@@ -574,7 +570,7 @@ mod test {
     }
 
     #[test]
-    fn test_missing_root_key() {
+    fn test_missing_root_key() -> Result<()> {
         fn make_key_manager() -> MockKeyManager {
             let mut key_manager = MockKeyManager::new();
             key_manager
@@ -596,11 +592,10 @@ mod test {
             key_manager
         }
 
-        let (envelope_pub_key, envelope_priv_key) =
-            SignKeyManager.generate_attenuation_key().unwrap();
-        let (_, inner_priv_key) = SignKeyManager.generate_attenuation_key().unwrap();
-        let inner = make_inner_jwt(inner_priv_key, ed25519::JWK::from(&envelope_pub_key));
-        let jwt = make_envelope_jwt(envelope_priv_key, vec![inner]);
+        let (envelope_pub_key, envelope_priv_key) = SignKeyManager.generate_attenuation_key()?;
+        let (_, inner_priv_key) = SignKeyManager.generate_attenuation_key()?;
+        let inner = make_inner_jwt(inner_priv_key, ed25519::JWK::from(&envelope_pub_key))?;
+        let jwt = make_envelope_jwt(envelope_priv_key, vec![inner])?;
 
         let key_manager = make_key_manager();
         let err = verify(key_manager, jwt.as_ref(), |mut c1, c2| {
@@ -613,6 +608,8 @@ mod test {
         } else {
             assert!(false, "expected a MissingKey error");
         }
+
+        Ok(())
     }
 
     #[derive(Clone)]
@@ -623,7 +620,8 @@ mod test {
     {
         fn generate_attenuation_key(
             &self,
-        ) -> Result<(ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey), SignError> {
+        ) -> std::result::Result<(ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey), SignError>
+        {
             ed25519::EddsaKeyGen.generate_attenuation_key()
         }
     }
