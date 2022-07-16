@@ -215,7 +215,7 @@ fn extract_aky<VKM: VerificationKeyManager>(
     verification_key_manager: &VKM,
     jwt: &str,
 ) -> Result<VKM::PublicAttenuationKey> {
-    let claims: FullClaims<VKM::JWK, VKM::PublicAttenuationKey, HashMap<String, String>> =
+    let claims: FullClaims<VKM::JWK, HashMap<String, String>> =
         insecurely_extract_claims(jwt)?;
     Ok(verification_key_manager
         .jwk_to_public_attenuation_key(&claims.aky)
@@ -243,7 +243,7 @@ fn insecurely_extract_claims<Claims: DeserializeOwned>(jwt: &str) -> Result<Clai
 fn decode_inner_jwt<VKM: VerificationKeyManager>(
     jwt: &str,
     get_key: GetKeyFn,
-) -> Result<FullClaims<VKM::JWK, VKM::PublicAttenuationKey, VKM::Claims>> {
+) -> Result<FullClaims<VKM::JWK, VKM::Claims>> {
     let header = decode_header(jwt)?;
     let kid = header.kid.clone();
     let public_key = get_key(kid).ok_or_else(|| Error::MissingKey(header.kid.clone()))?;
@@ -369,7 +369,7 @@ mod test {
             header.kid = Some(sign_with.key_id().to_owned());
             header
         };
-        let claims: FullClaims<NextKeyJWK, ed25519::Ed25519PublicKey, HashMap<String, String>> =
+        let claims: FullClaims<NextKeyJWK, HashMap<String, String>> =
             FullClaims::new(Default::default(), next_key_jwk);
         let inner_jwt = jsonwebtoken::encode(&header, &claims, &sign_with.to_encoding_key()?)?;
         Ok(SignedJWT(inner_jwt))

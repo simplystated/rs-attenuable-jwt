@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use erased_serde::Serialize as ErasedSerialize;
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -102,7 +100,7 @@ pub trait SigningKeyManager:
     fn claims_with_attenuation_key(
         claims: Self::Claims,
         attenuation_key: &Self::PublicAttenuationKey,
-    ) -> FullClaims<Self::JWK, Self::PublicAttenuationKey, Self::Claims> {
+    ) -> FullClaims<Self::JWK, Self::Claims> {
         FullClaims::new(
             claims,
             Self::jwk_for_public_attenuation_key(attenuation_key),
@@ -125,19 +123,17 @@ pub trait AttenuationKeyGenerator<
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct FullClaims<JWK: Serialize, Pub: PublicKey, Claims: Serialize> {
+pub struct FullClaims<JWK: Serialize, Claims: Serialize> {
     #[serde(flatten)]
     pub user_provided_claims: Claims,
     pub aky: JWK,
-    pk: PhantomData<Pub>,
 }
 
-impl<JWK: Serialize, Pub: PublicKey, Claims: Serialize> FullClaims<JWK, Pub, Claims> {
+impl<JWK: Serialize, Claims: Serialize> FullClaims<JWK, Claims> {
     pub fn new(user_provided_claims: Claims, aky: JWK) -> Self {
         Self {
             user_provided_claims,
             aky,
-            pk: PhantomData,
         }
     }
 }
