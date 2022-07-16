@@ -1,5 +1,4 @@
-//! Create and verify JWT tokens that holders can attenuate (add restrictive claims to).
-//!
+#![doc = include_str!("../README.md")]
 
 pub mod protocol;
 pub mod sign;
