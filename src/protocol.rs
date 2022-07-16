@@ -123,7 +123,7 @@ pub trait AttenuationKeyGenerator<
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct FullClaims<JWK: Serialize, Claims: Serialize> {
+pub struct FullClaims<JWK, Claims> {
     #[serde(flatten)]
     pub user_provided_claims: Claims,
     pub aky: JWK,

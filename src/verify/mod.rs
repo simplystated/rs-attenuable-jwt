@@ -9,7 +9,7 @@ pub use error::Error;
 use error::Result;
 
 use crate::protocol::{
-    FullClaims, PublicKey, SealedClaims, VerificationKeyManager, VerificationRequirements,
+    FullClaims, PublicKey, SealedClaims, VerificationKeyManager, VerificationRequirements, SignedJWT,
 };
 
 type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey + 'static>>>;
@@ -121,7 +121,7 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 /// };
 /// let claims = verify(
 ///     key_manager,
-///     attenuated_jwt.as_ref(),
+///     attenuated_jwt,
 ///     |c1, c2| {
 ///         c2
 ///             .into_iter()
@@ -140,12 +140,13 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 /// ```
 pub fn verify<VKM: VerificationKeyManager + 'static, ClaimResolver>(
     verification_key_manager: VKM,
-    jwt: &str,
+    jwt: SignedJWT,
     resolve_claims: ClaimResolver,
 ) -> Result<VKM::Claims>
 where
     ClaimResolver: Fn(VKM::Claims, VKM::Claims) -> VKM::Claims,
 {
+    let jwt = jwt.as_ref();
     let envelope_key: VKM::PublicAttenuationKey =
         final_attenuation_key(&verification_key_manager, jwt)?;
     let header = decode_header(jwt)?;
@@ -438,7 +439,7 @@ mod test {
         }
 
         let key_manager = make_key_manager(envelope_pub_key);
-        let err = verify(key_manager, token.as_ref(), |mut c1, c2| {
+        let err = verify(key_manager, token, |mut c1, c2| {
             c1.extend(c2);
             c1
         });
@@ -481,7 +482,7 @@ mod test {
         }
 
         let key_manager = make_key_manager();
-        let err = verify(key_manager, token.as_ref(), |mut c1, c2| {
+        let err = verify(key_manager, token, |mut c1, c2| {
             c1.extend(c2);
             c1
         });
@@ -514,7 +515,7 @@ mod test {
         let token = jsonwebtoken::encode(&header, &full_claims, &root_priv_key.to_encoding_key()?)?;
 
         let key_manager = MockKeyManager::new();
-        let err = verify(key_manager, &token, |mut c1, c2| {
+        let err = verify(key_manager, SignedJWT(token), |mut c1, c2| {
             c1.extend(c2);
             c1
         });
@@ -542,7 +543,7 @@ mod test {
         let token = jsonwebtoken::encode(&header, &full_claims, &root_priv_key.to_encoding_key()?)?;
 
         let key_manager = MockKeyManager::new();
-        let err = verify(key_manager, &token, |mut c1, c2| {
+        let err = verify(key_manager, SignedJWT(token), |mut c1, c2| {
             c1.extend(c2);
             c1
         });
@@ -558,7 +559,7 @@ mod test {
     #[test]
     fn test_bad_encoding() {
         let key_manager = MockKeyManager::new();
-        let err = verify(key_manager, "*&", |mut c1, c2| {
+        let err = verify(key_manager, SignedJWT("*&".to_owned()), |mut c1, c2| {
             c1.extend(c2);
             c1
         });
@@ -598,7 +599,7 @@ mod test {
         let jwt = make_envelope_jwt(envelope_priv_key, vec![inner])?;
 
         let key_manager = make_key_manager();
-        let err = verify(key_manager, jwt.as_ref(), |mut c1, c2| {
+        let err = verify(key_manager, jwt, |mut c1, c2| {
             c1.extend(c2);
             c1
         });

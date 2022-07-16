@@ -45,7 +45,7 @@ proptest! {
         };
         let verified_claims = verify(
             key_manager,
-            sealed_jwt.as_ref(),
+            sealed_jwt,
             |mut c1, c2| {
                 c1.extend(c2);
                 c1
