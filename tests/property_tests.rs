@@ -5,9 +5,9 @@ use attenuable_jwt::{
         VerificationRequirements,
     },
     sign::{
-        ed25519::{self, Ed25519PublicKey},
         AttenuableJWT, Error as SignError,
     },
+    ed25519,
     verify::verify,
 };
 use mockall::mock;
@@ -93,7 +93,7 @@ mock! {
 }
 
 fn make_verification_key_manager<Expectations>(
-    root_key: Ed25519PublicKey,
+    root_key: ed25519::Ed25519PublicKey,
     expectations: Expectations,
 ) -> MockVerificationKeyManager
 where

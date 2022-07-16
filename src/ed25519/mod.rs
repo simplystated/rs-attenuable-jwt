@@ -1,29 +1,15 @@
 use base64::URL_SAFE_NO_PAD;
 use jsonwebtoken::{DecodingKey, EncodingKey};
-use ring::signature::{Ed25519KeyPair, KeyPair};
 use serde::{Deserialize, Serialize};
 
-use crate::protocol::{AttenuationKeyGenerator, KeyUse, PrivateKey, PublicKey};
+use crate::protocol::{KeyUse, PrivateKey, PublicKey};
+use crate::sign;
 
-use super::Result;
+mod ed25519_sign;
+
+pub use ed25519_sign::EddsaKeyGen;
 
 pub const EDDSA_ALGORITHM: &str = "EdDSA";
-
-#[derive(Clone)]
-pub struct EddsaKeyGen;
-
-impl AttenuationKeyGenerator<Ed25519PublicKey, Ed25519PrivateKey> for EddsaKeyGen {
-    fn generate_attenuation_key(&self) -> Result<(Ed25519PublicKey, Ed25519PrivateKey)> {
-        use ring::rand::SystemRandom;
-
-        let rng = SystemRandom::new();
-        let pkcs8_bytes = Ed25519KeyPair::generate_pkcs8(&rng)?;
-        let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref())?;
-        let pub_key = Ed25519PublicKey::new(key_pair.public_key().as_ref().to_vec());
-        let priv_key = Ed25519PrivateKey::new("aky", pkcs8_bytes.as_ref());
-        Ok((pub_key, priv_key))
-    }
-}
 
 #[derive(Clone)]
 pub struct Ed25519PrivateKey {
@@ -49,7 +35,7 @@ impl PrivateKey for Ed25519PrivateKey {
         EDDSA_ALGORITHM
     }
 
-    fn to_encoding_key(&self) -> Result<EncodingKey> {
+    fn to_encoding_key(&self) -> sign::Result<EncodingKey> {
         Ok(EncodingKey::from_ed_der(&self.pkcs8_bytes))
     }
 }

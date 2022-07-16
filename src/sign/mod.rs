@@ -2,11 +2,9 @@ use std::{borrow::Cow, str::FromStr};
 
 use jsonwebtoken::{Algorithm, Header};
 
-pub mod ed25519;
 mod error;
 
-pub use error::Error;
-use error::Result;
+pub use error::{Error, Result};
 
 use crate::protocol::{
     Audience, Issuer, PrivateKey, SealedClaims, SecondsSinceEpoch, SignedJWT, SigningKeyManager,
@@ -17,7 +15,7 @@ use crate::protocol::{
 ///
 /// ```
 /// use std::{borrow::Cow, collections::HashMap};
-/// use attenuable_jwt::{protocol::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer}, sign::{ed25519, Error, AttenuableJWT}};
+/// use attenuable_jwt::{protocol::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer}, sign::{Error, AttenuableJWT}, ed25519};
 ///
 /// #[derive(Clone)]
 /// struct KeyManager;
