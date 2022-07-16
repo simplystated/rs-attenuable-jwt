@@ -6,6 +6,9 @@ edition = "2021"
 
 [lib]
 
+[features]
+integration-test = []
+
 [dependencies]
 base64 = "0.13.0"
 erased-serde = "0.3.21"

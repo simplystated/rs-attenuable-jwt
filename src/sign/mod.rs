@@ -73,6 +73,19 @@ pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
     private_attenuation_key: SKM::PrivateAttenuationKey,
 }
 
+#[cfg(feature = "integration-test")]
+impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
+    /// Testing-only access to the current set of JWTs
+    pub fn jwts(&self) -> &[SignedJWT] {
+        &self.jwts
+    }
+
+    /// Testing-only access to the current private attenuation key
+    pub fn private_attenuation_key(&self) -> &SKM::PrivateAttenuationKey {
+        &self.private_attenuation_key
+    }
+}
+
 impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the provided [crate::protocol::SigningKeyManager].
     /// Invariant: the private_attenuation_key must be the private key corresponding to the public key found in
