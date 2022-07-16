@@ -9,7 +9,8 @@ pub use error::Error;
 use error::Result;
 
 use crate::protocol::{
-    FullClaims, PublicKey, SealedClaims, VerificationKeyManager, VerificationRequirements, SignedJWT,
+    FullClaims, PublicKey, SealedClaims, SignedJWT, VerificationKeyManager,
+    VerificationRequirements,
 };
 
 type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey + 'static>>>;
@@ -216,8 +217,7 @@ fn extract_aky<VKM: VerificationKeyManager>(
     verification_key_manager: &VKM,
     jwt: &str,
 ) -> Result<VKM::PublicAttenuationKey> {
-    let claims: FullClaims<VKM::JWK, HashMap<String, String>> =
-        insecurely_extract_claims(jwt)?;
+    let claims: FullClaims<VKM::JWK, HashMap<String, String>> = insecurely_extract_claims(jwt)?;
     Ok(verification_key_manager
         .jwk_to_public_attenuation_key(&claims.aky)
         .ok_or_else(|| Error::MalformedAttenuationKeyJWK)?)
@@ -280,6 +280,7 @@ fn validation_config(reqs: VerificationRequirements) -> Result<Validation> {
 
     let mut v = Validation::default();
     v.set_required_spec_claims(required_spec_claims.as_slice());
+    v.validate_nbf = true;
     reqs.acceptable_issuers.as_ref().map(|iss| {
         v.set_issuer(
             iss.into_iter()
