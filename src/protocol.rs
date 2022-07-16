@@ -85,7 +85,7 @@ pub struct VerificationRequirements {
     pub acceptable_algorithms: Vec<String>,
     pub acceptable_issuers: Option<Vec<Issuer>>,
     pub acceptable_audiences: Option<Vec<Audience>>,
-    pub acceptable_subjects: Option<String>,
+    pub acceptable_subject: Option<String>,
 }
 
 pub trait SigningKeyManager:

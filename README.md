@@ -70,6 +70,6 @@ If you need to stick with regular old JWTs but would like the benefits of chain 
 Run tests with the `integration-test` feature enabled.
 The integration tests depend on access to some internals that we do not expose to clients.
 
-```
+```bash
 cargo test --features=integration-test
 ```

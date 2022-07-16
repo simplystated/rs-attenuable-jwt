@@ -127,7 +127,7 @@ fn add_expected_verifications(mut m: MockVerificationKeyManager) -> MockVerifica
             acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
             acceptable_issuers: Some(vec![Issuer(EXPECTED_ISSUER.to_owned())]),
             acceptable_audiences: Some(vec![Audience(EXPECTED_AUDIENCE.to_owned())]),
-            acceptable_subjects: None,
+            acceptable_subject: None,
         });
     m
 }
@@ -210,7 +210,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                                 acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
                                 acceptable_issuers: Some(vec![iss.clone()]),
                                 acceptable_audiences: Some(vec![aud.clone()]),
-                                acceptable_subjects: None,
+                                acceptable_subject: None,
                             });
                         m
                     });
@@ -506,7 +506,7 @@ impl VerificationKeyManager for VerifyKeyManager {
             acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
             acceptable_issuers: self.acceptable_issuers.clone(),
             acceptable_audiences: None,
-            acceptable_subjects: None,
+            acceptable_subject: None,
         }
     }
 

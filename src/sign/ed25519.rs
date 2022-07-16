@@ -42,7 +42,7 @@ impl Ed25519PrivateKey {
 
 impl PrivateKey for Ed25519PrivateKey {
     fn key_id(&self) -> &str {
-        &self.key_id
+        self.key_id
     }
 
     fn algorithm(&self) -> &str {

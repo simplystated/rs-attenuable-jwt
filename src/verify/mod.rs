@@ -102,7 +102,7 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 ///             acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
 ///             acceptable_issuers: Some(vec![Issuer("my-issuer".to_owned())]),
 ///             acceptable_audiences: None,
-///             acceptable_subjects: None,
+///             acceptable_subject: None,
 ///         }
 ///     }
 ///
@@ -172,9 +172,9 @@ where
 
     let default_claims = verification_key_manager.default_claims();
     let vkm = verification_key_manager.clone(); // TODO: this is silly
-    let get_root_key = Box::new(move |kid| match vkm.get_root_key(&kid) {
-        None => None,
-        Some(rk) => Some(Box::new(rk) as Box<dyn PublicKey>),
+    let get_root_key = Box::new(move |kid| {
+        vkm.get_root_key(&kid)
+            .map(|rk| Box::new(rk) as Box<dyn PublicKey>)
     }) as GetKeyFn;
     let (_, claims) = jwts.into_iter().fold(
         Ok((get_root_key, default_claims)),
@@ -206,11 +206,11 @@ fn final_attenuation_key<VKM: VerificationKeyManager>(
 ) -> Result<VKM::PublicAttenuationKey> {
     let claims: SealedClaims = insecurely_extract_claims(jwt)?;
 
-    Ok(claims
+    claims
         .jwts
         .last()
-        .ok_or_else(|| Error::MissingFinalAttenuationKey)
-        .and_then(|jwt| extract_aky(verification_key_manager, jwt.as_ref()))?)
+        .ok_or(Error::MissingFinalAttenuationKey)
+        .and_then(|jwt| extract_aky(verification_key_manager, jwt.as_ref()))
 }
 
 fn extract_aky<VKM: VerificationKeyManager>(
@@ -218,9 +218,9 @@ fn extract_aky<VKM: VerificationKeyManager>(
     jwt: &str,
 ) -> Result<VKM::PublicAttenuationKey> {
     let claims: FullClaims<VKM::JWK, HashMap<String, String>> = insecurely_extract_claims(jwt)?;
-    Ok(verification_key_manager
+    verification_key_manager
         .jwk_to_public_attenuation_key(&claims.aky)
-        .ok_or_else(|| Error::MalformedAttenuationKeyJWK)?)
+        .ok_or(Error::MalformedAttenuationKeyJWK)
 }
 
 fn insecurely_extract_claims<Claims: DeserializeOwned>(jwt: &str) -> Result<Claims> {
@@ -260,8 +260,7 @@ fn decode_inner_jwt<VKM: VerificationKeyManager>(
 
 fn validation_config(reqs: VerificationRequirements) -> Result<Validation> {
     let required_spec_claims = {
-        let mut required_spec_claims = Vec::new();
-        required_spec_claims.push("exp".to_owned());
+        let mut required_spec_claims = vec!["exp".to_owned()];
 
         if reqs.acceptable_audiences.is_some() {
             required_spec_claims.push("aud".to_owned());
@@ -271,7 +270,7 @@ fn validation_config(reqs: VerificationRequirements) -> Result<Validation> {
             required_spec_claims.push("iss".to_owned());
         }
 
-        if reqs.acceptable_subjects.is_some() {
+        if reqs.acceptable_subject.is_some() {
             required_spec_claims.push("sub".to_owned());
         }
 
@@ -281,23 +280,25 @@ fn validation_config(reqs: VerificationRequirements) -> Result<Validation> {
     let mut v = Validation::default();
     v.set_required_spec_claims(required_spec_claims.as_slice());
     v.validate_nbf = true;
-    reqs.acceptable_issuers.as_ref().map(|iss| {
+    if let Some(issuers) = reqs.acceptable_issuers.as_ref() {
         v.set_issuer(
-            iss.into_iter()
+            issuers
+                .iter()
                 .map(|i| i.as_ref())
                 .collect::<Vec<_>>()
                 .as_slice(),
         )
-    });
-    reqs.acceptable_audiences.as_ref().map(|iss| {
+    }
+    if let Some(audiences) = reqs.acceptable_audiences.as_ref() {
         v.set_audience(
-            iss.into_iter()
+            audiences
+                .iter()
                 .map(|a| a.as_ref())
                 .collect::<Vec<_>>()
                 .as_slice(),
         )
-    });
-    reqs.acceptable_subjects.map(|sub| v.sub = Some(sub));
+    }
+    v.sub = reqs.acceptable_subject;
     v.algorithms = reqs
         .acceptable_algorithms
         .iter()
@@ -424,7 +425,7 @@ mod test {
                     acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
                     acceptable_issuers: Some(vec![Issuer(EXPECTED_ISSUER.to_owned())]),
                     acceptable_audiences: None,
-                    acceptable_subjects: None,
+                    acceptable_subject: None,
                 });
             key_manager
                 .expect_default_claims()
@@ -477,7 +478,7 @@ mod test {
                     acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
                     acceptable_issuers: Some(vec![Issuer(EXPECTED_ISSUER.to_owned())]),
                     acceptable_audiences: None,
-                    acceptable_subjects: None,
+                    acceptable_subject: None,
                 });
             key_manager
         }
@@ -584,7 +585,7 @@ mod test {
                     acceptable_algorithms: vec![ed25519::EDDSA_ALGORITHM.to_owned()],
                     acceptable_issuers: Some(vec![Issuer(EXPECTED_ISSUER.to_owned())]),
                     acceptable_audiences: None,
-                    acceptable_subjects: None,
+                    acceptable_subject: None,
                 });
             key_manager
                 .expect_default_claims()

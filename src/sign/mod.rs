@@ -114,7 +114,7 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
         let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
         let full_claims = SKM::claims_with_attenuation_key(claims, &pub_key);
         let header = {
-            let mut header = Header::new(Algorithm::from_str(&root_key.algorithm())?);
+            let mut header = Header::new(Algorithm::from_str(root_key.algorithm())?);
             header.kid = Some(root_key.key_id().to_owned());
             header
         };
@@ -161,7 +161,7 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     ) -> Result<SignedJWT> {
         let header = {
             let mut header = Header::new(Algorithm::from_str(
-                &self.private_attenuation_key.algorithm(),
+                self.private_attenuation_key.algorithm(),
             )?);
             header.kid = Some(self.private_attenuation_key.key_id().to_owned());
             header
@@ -170,8 +170,8 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
             jwts: self.jwts.clone(),
             exp: Some(expiration),
             nbf: Some(not_before),
-            iss: issuer.map(|iss| iss.to_owned()),
-            aud: audience.map(|aud| aud.to_owned()),
+            iss: issuer,
+            aud: audience,
         };
 
         let token = jsonwebtoken::encode(
