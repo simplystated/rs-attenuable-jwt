@@ -12,7 +12,7 @@ integration-test = []
 [dependencies]
 base64 = "0.13.0"
 erased-serde = "0.3.21"
-jsonwebtoken = { version = "8.1.1", no-default-features = true }
+jsonwebtoken = "8.1.1"
 ring = "0.16.20"
 serde = "1.0.138"
 thiserror = "1.0.31"
