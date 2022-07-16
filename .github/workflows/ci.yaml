@@ -29,12 +29,12 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --release --locked
+          args: --release
       - name: Test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --locked --features=integration-test
+          args: --features=integration-test
       - name: Clippy
         uses: actions-rs/cargo@v1
         with:
@@ -44,4 +44,3 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: doc
-          args: --locked
