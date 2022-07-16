@@ -25,6 +25,7 @@ impl AttenuationKeyGenerator<Ed25519PublicKey, Ed25519PrivateKey> for EddsaKeyGe
     }
 }
 
+#[derive(Clone)]
 pub struct Ed25519PrivateKey {
     key_id: &'static str,
     pkcs8_bytes: Vec<u8>,
