@@ -3,7 +3,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("jwt error")]
-    JWTError(#[from] jsonwebtoken::errors::Error),
+    JWTError(Option<Box<dyn std::error::Error>>),
     #[error("missing final attenuation key")]
     MissingFinalAttenuationKey,
     #[error("invalid attenuation key")]
@@ -16,6 +16,8 @@ pub enum Error {
     MalformedAttenuationKeyJWK,
     #[error("malformed jwk")]
     MalformedJWK(#[from] base64::DecodeError),
+    #[error("invalid key")]
+    InvalidKey,
 }
 
 pub type Result<R> = std::result::Result<R, Error>;

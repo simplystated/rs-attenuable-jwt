@@ -1,8 +1,7 @@
 use erased_serde::Serialize as ErasedSerialize;
-use jsonwebtoken::{DecodingKey, EncodingKey};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SignedJWT(pub String);
 
@@ -12,7 +11,7 @@ impl AsRef<str> for SignedJWT {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SealedClaims {
     pub exp: Option<SecondsSinceEpoch>,
     pub nbf: Option<SecondsSinceEpoch>,
@@ -21,11 +20,11 @@ pub struct SealedClaims {
     pub jwts: Vec<SignedJWT>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SecondsSinceEpoch(pub u64);
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Issuer(pub String);
 
@@ -35,7 +34,7 @@ impl AsRef<str> for Issuer {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Audience(pub String);
 
@@ -46,10 +45,9 @@ impl AsRef<str> for Audience {
 }
 
 /// A private key
-pub trait PrivateKey {
+pub trait PrivateKey: ErasedSerialize {
     fn key_id(&self) -> &str;
     fn algorithm(&self) -> &str;
-    fn to_encoding_key(&self) -> Result<EncodingKey, crate::sign::Error>;
 }
 
 /// A public key. The [Serialize] implementation must serialize to a JWK.
@@ -57,10 +55,11 @@ pub trait PublicKey: ErasedSerialize {
     fn key_id(&self) -> &str;
     fn algorithm(&self) -> &str;
     fn key_use(&self) -> KeyUse;
-    fn to_decoding_key(&self) -> Result<DecodingKey, crate::verify::Error>;
 }
 
-#[derive(Serialize, Deserialize)]
+erased_serde::serialize_trait_object!(PublicKey);
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum KeyUse {
     #[serde(rename = "enc")]
     Encryption,
@@ -76,16 +75,53 @@ pub trait VerificationKeyManager: Clone {
     type JWK: Serialize + DeserializeOwned;
 
     fn get_root_key(&self, key_id: &Option<String>) -> Option<Self::PublicRootKey>;
-    fn get_root_verification_requirements(&self) -> VerificationRequirements;
+    fn get_envelope_verification_requirements(&self) -> VerificationRequirements;
     fn default_claims(&self) -> Self::Claims;
     fn jwk_to_public_attenuation_key(&self, jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey>;
 }
 
-pub struct VerificationRequirements {
-    pub acceptable_algorithms: Vec<String>,
-    pub acceptable_issuers: Option<Vec<Issuer>>,
-    pub acceptable_audiences: Option<Vec<Audience>>,
-    pub acceptable_subject: Option<String>,
+pub trait JWTDecoder {
+    fn decode_jwt<Claims: DeserializeOwned, PubKey: PublicKey + ?Sized>(
+        &self,
+        jwt: &SignedJWT,
+        verification_key: &PubKey,
+        verification_reqs: &VerificationRequirements,
+    ) -> crate::verify::Result<Claims>;
+    fn insecurely_decode_jwt<Claims: DeserializeOwned>(
+        &self,
+        jwt: &SignedJWT,
+    ) -> crate::verify::Result<Claims>;
+    fn decode_jwt_header(&self, jwt: &SignedJWT) -> crate::verify::Result<JWTHeader>;
+}
+
+pub trait JWTEncoder {
+    fn encode_jwt<Claims: Serialize, PrivKey: PrivateKey + ?Sized>(
+        &self,
+        header: &JWTHeader,
+        claims: &Claims,
+        signing_key: &PrivKey,
+    ) -> crate::sign::Result<SignedJWT>;
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct JWTHeader {
+    #[serde(rename = "kid")]
+    pub key_id: Option<String>,
+    #[serde(rename = "alg")]
+    pub algorithm: String,
+}
+
+#[derive(Clone, Debug)]
+pub enum VerificationRequirements {
+    VerifyClaims {
+        acceptable_algorithms: Vec<String>,
+        acceptable_issuers: Option<Vec<Issuer>>,
+        acceptable_audiences: Option<Vec<Audience>>,
+        acceptable_subject: Option<String>,
+    },
+    VerifySignatureOnly {
+        acceptable_algorithms: Vec<String>,
+    },
 }
 
 pub trait SigningKeyManager:
