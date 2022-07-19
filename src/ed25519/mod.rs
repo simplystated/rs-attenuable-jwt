@@ -1,5 +1,6 @@
 use base64::URL_SAFE_NO_PAD;
 use serde::{Deserialize, Serialize};
+use zeroize::ZeroizeOnDrop;
 
 use crate::protocol::{KeyUse, PrivateKey, PublicKey};
 
@@ -9,7 +10,7 @@ pub use ed25519_sign::EddsaKeyGen;
 
 pub const EDDSA_ALGORITHM: &str = "EdDSA";
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, ZeroizeOnDrop)]
 #[serde(into = "JWK")]
 pub struct Ed25519PrivateKey {
     key_id: String,

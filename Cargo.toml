@@ -8,7 +8,7 @@ edition = "2021"
 
 [features]
 integration-test = ["ed25519"]
-ed25519 = ["ring"]
+ed25519 = ["ring", "zeroize"]
 
 [dependencies]
 base64 = "0.13.0"
@@ -16,6 +16,7 @@ erased-serde = "0.3.21"
 serde = { version = "1.0.138", features = ["derive"] }
 thiserror = "1.0.31"
 ring = { version = "0.16.20", optional = true }
+zeroize = { version = "1.5.6", features = ["zeroize_derive"], optional = true }
 
 [dev-dependencies]
 jsonwebtoken = "8.1.1"
