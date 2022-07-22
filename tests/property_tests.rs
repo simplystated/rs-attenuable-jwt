@@ -135,7 +135,8 @@ impl JWTDecoder for JsonwebtokenDecoder {
         .map_err(|_| verify::Error::InvalidKey)?;
         let jwk: ed25519::JWK =
             serde_json::from_slice(&json).map_err(|_| verify::Error::InvalidKey)?;
-        let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD)?;
+        let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD)
+            .map_err(|_| verify::Error::MalformedAttenuationKeyJWK)?;
         let decoding_key = DecodingKey::from_ed_der(&x);
         Ok(decode(
             jwt.as_ref(),

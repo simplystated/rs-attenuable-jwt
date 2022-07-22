@@ -1,3 +1,6 @@
+//! This module provides an [AttenuableJWT] struct as the core type for creating and attenuating JWTs.
+//! The JWTs created by calling [AttenuableJWT::seal] may be verified by calling [crate::verify::verify].
+
 use std::borrow::Cow;
 
 mod error;
@@ -5,8 +8,8 @@ mod error;
 pub use error::{Error, Result};
 
 use crate::protocol::{
-    Audience, Issuer, JWTEncoder, JWTHeader, PrivateKey, SealedClaims, SecondsSinceEpoch,
-    SignedJWT, SigningKeyManager,
+    Audience, FullClaims, Issuer, JWTEncoder, JWTHeader, PrivateKey, SealedClaims,
+    SecondsSinceEpoch, SignedJWT, SigningKeyManager,
 };
 
 /// An AttenuableJWT carries a set of immutable claims but allows for the creation of a JWT with an attenuated
@@ -156,7 +159,7 @@ impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM
         claims: SKM::Claims,
     ) -> Result<Self> {
         let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
-        let full_claims = SKM::claims_with_attenuation_key(claims, &pub_key);
+        let full_claims = FullClaims::new(claims, SKM::jwk_for_public_attenuation_key(&pub_key));
         let header = JWTHeader {
             key_id: Some(root_key.key_id().to_owned()),
             algorithm: root_key.algorithm().to_owned(),

@@ -1,3 +1,5 @@
+//! This module provides a [verify] function for verifying attenuable JWTs created by calling [crate::sign::AttenuableJWT::seal].
+
 use std::collections::HashMap;
 
 use serde::de::DeserializeOwned;
@@ -175,7 +177,7 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 ///         .map_err(|_| Error::InvalidKey)?;
 ///         let jwk: ed25519::JWK =
 ///             serde_json::from_slice(&json).map_err(|_| Error::InvalidKey)?;
-///         let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD)?;
+///         let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD).map_err(|_| Error::InvalidKey)?;
 ///         let decoding_key = DecodingKey::from_ed_der(&x);
 ///         Ok(decode(
 ///             jwt.as_ref(),
@@ -469,7 +471,8 @@ mod test {
             .map_err(|_| crate::verify::Error::InvalidKey)?;
             let jwk: ed25519::JWK =
                 serde_json::from_slice(&json).map_err(|_| crate::verify::Error::InvalidKey)?;
-            let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD)?;
+            let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD)
+                .map_err(|_| Error::MalformedAttenuationKeyJWK)?;
             let decoding_key = DecodingKey::from_ed_der(&x);
             Ok(decode(
                 jwt.as_ref(),

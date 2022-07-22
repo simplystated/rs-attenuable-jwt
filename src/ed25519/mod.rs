@@ -1,3 +1,6 @@
+//! Module containing [crate::protocol::PrivateKey] and [crate::protocol::PublicKey] implementations for the
+//! ed25519 algorithm.
+
 use base64::URL_SAFE_NO_PAD;
 use serde::{Deserialize, Serialize};
 use zeroize::ZeroizeOnDrop;
@@ -8,8 +11,10 @@ mod ed25519_sign;
 
 pub use ed25519_sign::EddsaKeyGen;
 
+/// Algorithm identifier for the EdDSA (ED25519) algorithm.
 pub const EDDSA_ALGORITHM: &str = "EdDSA";
 
+/// Private key for the ed25519 algorithm.
 #[derive(Serialize, Clone, ZeroizeOnDrop)]
 #[serde(into = "JWK")]
 pub struct Ed25519PrivateKey {
@@ -18,6 +23,7 @@ pub struct Ed25519PrivateKey {
 }
 
 impl Ed25519PrivateKey {
+    /// Create an ed25519 private key.
     fn new(key_id: String, pkcs8_bytes: &[u8]) -> Self {
         Self {
             key_id,
@@ -36,6 +42,7 @@ impl PrivateKey for Ed25519PrivateKey {
     }
 }
 
+/// Public key for the ed25519 algorithm.
 #[derive(Serialize, Clone)]
 #[serde(into = "JWK")]
 pub struct Ed25519PublicKey {
@@ -58,6 +65,7 @@ impl PublicKey for Ed25519PublicKey {
 }
 
 impl Ed25519PublicKey {
+    /// Create a public key for the ed25519 algorithm.
     fn new(x: Vec<u8>) -> Self {
         Self {
             key_id: "aky".to_owned(),
@@ -66,24 +74,36 @@ impl Ed25519PublicKey {
     }
 }
 
+/// JWK for [Ed25519PublicKey]s and [Ed25519PrivateKey]s.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct JWK {
+    /// Key ID.
     pub kid: String,
+    /// Key use.
     #[serde(rename = "use")]
     pub key_use: KeyUse,
+    /// Key operations.
     pub key_ops: Vec<KeyOp>,
+    /// Algorithm.
     pub alg: String,
+    /// Key type.
     pub kty: String,
+    /// Curve.
     pub crv: String,
+    /// Public key component.
     pub x: String,
+    /// Private key component.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub d: Option<String>,
 }
 
+/// Key operation.
 #[derive(Clone, Serialize, Deserialize)]
 pub enum KeyOp {
+    /// Sign.
     #[serde(rename = "sign")]
     Sign,
+    /// Verify.
     #[serde(rename = "verify")]
     Verify,
 }
@@ -142,7 +162,8 @@ impl TryFrom<&JWK> for Ed25519PublicKey {
     fn try_from(jwk: &JWK) -> std::result::Result<Self, Self::Error> {
         Ok(Ed25519PublicKey {
             key_id: jwk.kid.clone(),
-            x: base64::decode_config(&jwk.x, URL_SAFE_NO_PAD)?,
+            x: base64::decode_config(&jwk.x, URL_SAFE_NO_PAD)
+                .map_err(|_| crate::verify::Error::MalformedAttenuationKeyJWK)?,
         })
     }
 }
@@ -152,8 +173,10 @@ impl TryFrom<&JWK> for Ed25519PrivateKey {
 
     fn try_from(jwk: &JWK) -> std::result::Result<Self, Self::Error> {
         if let Some(d) = &jwk.d {
-            let x = base64::decode_config(&jwk.x, URL_SAFE_NO_PAD)?;
-            let d = base64::decode_config(d, URL_SAFE_NO_PAD)?;
+            let x = base64::decode_config(&jwk.x, URL_SAFE_NO_PAD)
+                .map_err(|_| crate::verify::Error::MalformedAttenuationKeyJWK)?;
+            let d = base64::decode_config(d, URL_SAFE_NO_PAD)
+                .map_err(|_| crate::verify::Error::MalformedAttenuationKeyJWK)?;
             let pkcs8_bytes = x.into_iter().chain(d.into_iter()).collect();
             Ok(Ed25519PrivateKey {
                 key_id: jwk.kid.clone(),
