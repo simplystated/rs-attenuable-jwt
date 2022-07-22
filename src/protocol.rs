@@ -193,7 +193,7 @@ pub enum VerificationRequirements {
 pub trait SigningKeyManager:
     AttenuationKeyGenerator<Self::PublicAttenuationKey, Self::PrivateAttenuationKey> + Clone
 {
-    /// Type of the JWK for the [PublicAttenuationKey].
+    /// Type of the JWK for the [Self::PublicAttenuationKey].
     type JWK: Serialize;
     /// Type of the public key for the attenuation keys.
     type PublicAttenuationKey: PublicKey;
