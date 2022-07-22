@@ -17,7 +17,7 @@ use crate::protocol::{
 ///
 /// ```
 /// use std::{borrow::Cow, collections::HashMap, str::FromStr};
-/// use attenuable_jwt::{protocol::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer, JWTEncoder, PrivateKey, JWTHeader, SignedJWT}, sign::{Result, Error, AttenuableJWT}, ed25519};
+/// use attenuable_jwt::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer, JWTEncoder, PrivateKey, JWTHeader, SignedJWT, sign::{Result, Error, AttenuableJWT}, ed25519};
 /// use jsonwebtoken::{encode, EncodingKey};
 ///
 /// #[derive(Clone)]
@@ -131,7 +131,7 @@ impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM
 }
 
 impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM, JWTE> {
-    /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the provided [crate::protocol::SigningKeyManager].
+    /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the provided [crate::SigningKeyManager].
     /// Invariant: the private_attenuation_key must be the private key corresponding to the public key found in
     /// `jwts.last().unwrap().claim("aky")`.
     pub fn with_key_manager(
@@ -148,7 +148,7 @@ impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM
         }
     }
 
-    /// Constructs a new AttenuableJWT with the given root_key and claims, using the provided [crate::protocol::AttenuationKeyGenerator].
+    /// Constructs a new AttenuableJWT with the given root_key and claims, using the provided [crate::AttenuationKeyGenerator].
     /// The `root_key` will be used to sign this initial JWT.
     /// `claims` will be augmented with an `aky` claim containing the public counterpart to the `private_attenuation_key`
     /// in the returned AttenuableJWT.

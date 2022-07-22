@@ -1,12 +1,10 @@
 use attenuable_jwt::{
     ed25519,
-    protocol::{
-        AttenuationKeyGenerator, Audience, FullClaims, Issuer, JWTDecoder, JWTEncoder, JWTHeader,
-        PrivateKey, PublicKey, SealedClaims, SecondsSinceEpoch, SignedJWT, SigningKeyManager,
-        VerificationKeyManager, VerificationRequirements,
-    },
     sign::{self, AttenuableJWT, Error as SignError},
     verify::{self, verify},
+    AttenuationKeyGenerator, Audience, FullClaims, Issuer, JWTDecoder, JWTEncoder, JWTHeader,
+    PrivateKey, PublicKey, SealedClaims, SecondsSinceEpoch, SignedJWT, SigningKeyManager,
+    VerificationKeyManager, VerificationRequirements,
 };
 use jsonwebtoken::{
     decode, decode_header, encode, Algorithm, DecodingKey, EncodingKey, Validation,
