@@ -19,7 +19,7 @@ use crate::protocol::{
 ///
 /// ```
 /// use std::{borrow::Cow, collections::HashMap, str::FromStr};
-/// use attenuable_jwt::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer, PrivateKey, JWTHeader, SignedJWT, sign::{Result, Error, AttenuableJWT}, ed25519};
+/// use attenuable_jwt::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer, sign::{Result, Error, AttenuableJWT}, ed25519};
 ///
 /// #[derive(Clone)]
 /// struct KeyManager;
