@@ -2,6 +2,7 @@
 //! ed25519 algorithm.
 
 use base64::URL_SAFE_NO_PAD;
+use ring::signature::Ed25519KeyPair;
 use serde::{Deserialize, Serialize};
 use zeroize::ZeroizeOnDrop;
 
@@ -39,6 +40,12 @@ impl PrivateKey for Ed25519PrivateKey {
 
     fn algorithm(&self) -> &str {
         EDDSA_ALGORITHM
+    }
+
+    fn sign(&self, message: &[u8]) -> crate::sign::Result<Vec<u8>> {
+        let key_pair = Ed25519KeyPair::from_pkcs8(&self.pkcs8_bytes)
+            .map_err(|err| crate::sign::Error::CryptoError(Box::new(err)))?;
+        Ok(key_pair.sign(message).as_ref().iter().map(|u| *u).collect())
     }
 }
 

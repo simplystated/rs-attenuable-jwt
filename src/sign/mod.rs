@@ -5,11 +5,13 @@ use std::borrow::Cow;
 
 mod error;
 
+use base64::URL_SAFE_NO_PAD;
 pub use error::{Error, Result};
+use serde::Serialize;
 
 use crate::protocol::{
-    Audience, FullClaims, Issuer, JWTEncoder, JWTHeader, PrivateKey, SealedClaims,
-    SecondsSinceEpoch, SignedJWT, SigningKeyManager,
+    Audience, FullClaims, Issuer, JWTHeader, PrivateKey, SealedClaims, SecondsSinceEpoch,
+    SignedJWT, SigningKeyManager,
 };
 
 /// An AttenuableJWT carries a set of immutable claims but allows for the creation of a JWT with an attenuated
@@ -17,50 +19,7 @@ use crate::protocol::{
 ///
 /// ```
 /// use std::{borrow::Cow, collections::HashMap, str::FromStr};
-/// use attenuable_jwt::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer, JWTEncoder, PrivateKey, JWTHeader, SignedJWT, sign::{Result, Error, AttenuableJWT}, ed25519};
-/// use jsonwebtoken::{encode, EncodingKey};
-///
-/// #[derive(Clone)]
-/// struct JsonwebtokenEncoder;
-///
-/// impl JWTEncoder for JsonwebtokenEncoder {
-///     fn encode_jwt<Claims: serde::Serialize, PrivKey: PrivateKey + ?Sized>(
-///         &self,
-///         header: &JWTHeader,
-///         claims: &Claims,
-///         signing_key: &PrivKey,
-///     ) -> Result<SignedJWT> {
-///             let mut json: Vec<u8> = Default::default();
-///             erased_serde::serialize(
-///                 signing_key,
-///                 &mut serde_json::Serializer::new(&mut json),
-///             )
-///             .map_err(|err| Error::KeyError(Some(Box::new(err))))?;
-///             let jwk: ed25519::JWK =
-///                 serde_json::from_slice(&json).map_err(|err| Error::KeyError(Some(Box::new(err))))?;
-///             if let Some(d) = &jwk.d {
-///                 let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD).map_err(|err| Error::KeyError(Some(Box::new(err))))?;
-///                 let d = base64::decode_config(d, base64::URL_SAFE_NO_PAD).map_err(|err| Error::KeyError(Some(Box::new(err))))?;
-///                 let der: Vec<_> = x.into_iter().chain(d.into_iter()).collect();
-///                 let encoding_key = EncodingKey::from_ed_der(&der);
-///                 let header = {
-///                     let mut h = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::from_str(
-///                         &header.algorithm,
-///                     ).map_err(|err| Error::KeyError(Some(Box::new(err))))?);
-///                     h.kid = header.key_id.clone();
-///                     h
-///                 };
-///                 let token = encode(
-///                     &header,
-///                     claims,
-///                     &encoding_key,
-///                 ).map_err(|err| Error::CryptoError(Some(Box::new(err))))?;
-///                 Ok(SignedJWT(token))
-///             } else {
-///                 Err(Error::KeyError(None))
-///             }
-///     }
-/// }
+/// use attenuable_jwt::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer, PrivateKey, JWTHeader, SignedJWT, sign::{Result, Error, AttenuableJWT}, ed25519};
 ///
 /// #[derive(Clone)]
 /// struct KeyManager;
@@ -99,7 +58,7 @@ use crate::protocol::{
 /// };
 /// let key_manager = KeyManager;
 /// let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
-/// let ajwt = AttenuableJWT::new_with_key_manager(Cow::Borrowed(&key_manager), Cow::Borrowed(&JsonwebtokenEncoder), &priv_key, claims)?;
+/// let ajwt = AttenuableJWT::new_with_key_manager(Cow::Borrowed(&key_manager), &priv_key, claims)?;
 /// let attenuated_claims = {
 ///     let mut claims = HashMap::new();
 ///     claims.insert("aud".to_owned(), "restricted-audience".to_owned());
@@ -110,15 +69,14 @@ use crate::protocol::{
 /// # Ok(())
 /// # }
 /// ```
-pub struct AttenuableJWT<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> {
+pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
     key_manager: Cow<'a, SKM>,
-    jwt_encoder: Cow<'a, JWTE>,
     jwts: Vec<SignedJWT>,
     private_attenuation_key: SKM::PrivateAttenuationKey,
 }
 
 #[cfg(feature = "integration-test")]
-impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM, JWTE> {
+impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     /// Testing-only access to the current set of JWTs
     pub fn jwts(&self) -> &[SignedJWT] {
         &self.jwts
@@ -130,19 +88,17 @@ impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM
     }
 }
 
-impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM, JWTE> {
+impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the provided [crate::SigningKeyManager].
     /// Invariant: the private_attenuation_key must be the private key corresponding to the public key found in
     /// `jwts.last().unwrap().claim("aky")`.
     pub fn with_key_manager(
         key_manager: Cow<'a, SKM>,
-        jwt_encoder: Cow<'a, JWTE>,
         jwts: Vec<SignedJWT>,
         private_attenuation_key: SKM::PrivateAttenuationKey,
     ) -> Self {
         Self {
             key_manager,
-            jwt_encoder,
             jwts,
             private_attenuation_key,
         }
@@ -154,7 +110,6 @@ impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM
     /// in the returned AttenuableJWT.
     pub fn new_with_key_manager<RootKey: PrivateKey>(
         key_manager: Cow<'a, SKM>,
-        jwt_encoder: Cow<'a, JWTE>,
         root_key: &RootKey,
         claims: SKM::Claims,
     ) -> Result<Self> {
@@ -165,11 +120,10 @@ impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM
             algorithm: root_key.algorithm().to_owned(),
         };
 
-        let token = jwt_encoder.encode_jwt(&header, &full_claims, root_key)?;
+        let token = encode_jwt(&header, &full_claims, root_key)?;
 
         Ok(Self {
             key_manager,
-            jwt_encoder,
             jwts: vec![token],
             private_attenuation_key: priv_key,
         })
@@ -181,7 +135,6 @@ impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM
     pub fn attenuate(&self, claims: SKM::Claims) -> Result<Self> {
         let mut attenuated = Self::new_with_key_manager(
             self.key_manager.clone(),
-            self.jwt_encoder.clone(),
             &self.private_attenuation_key,
             claims,
         )?;
@@ -219,10 +172,36 @@ impl<'a, SKM: SigningKeyManager, JWTE: JWTEncoder + Clone> AttenuableJWT<'a, SKM
             aud: audience,
         };
 
-        let token = self
-            .jwt_encoder
-            .encode_jwt(&header, &claims, &self.private_attenuation_key)?;
+        let token = encode_jwt(&header, &claims, &self.private_attenuation_key)?;
 
         Ok(token)
     }
+}
+
+fn encode_jwt<Claims: Serialize, PrivKey: PrivateKey + ?Sized>(
+    header: &JWTHeader,
+    claims: &Claims,
+    signing_key: &PrivKey,
+) -> Result<SignedJWT> {
+    let header_bytes =
+        serde_json::to_vec(&header).map_err(|err| Error::SerializationError(Box::new(err)))?;
+    let claims_bytes =
+        serde_json::to_vec(&claims).map_err(|err| Error::SerializationError(Box::new(err)))?;
+    let header_b64 = base64::encode_config(&header_bytes, URL_SAFE_NO_PAD);
+    let claims_b64 = base64::encode_config(&claims_bytes, URL_SAFE_NO_PAD);
+    let message: Vec<_> = header_b64
+        .as_bytes()
+        .iter()
+        .chain(".".as_bytes())
+        .chain(claims_b64.as_bytes())
+        .copied()
+        .collect();
+    let signature = signing_key.sign(&message)?;
+    let signature_b64 = base64::encode_config(&signature, URL_SAFE_NO_PAD);
+    let mut jwt = header_b64;
+    jwt.push('.');
+    jwt.push_str(&claims_b64);
+    jwt.push('.');
+    jwt.push_str(&signature_b64);
+    Ok(SignedJWT(jwt))
 }

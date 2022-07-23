@@ -2,11 +2,11 @@ use attenuable_jwt::{
     ed25519,
     sign::{self, AttenuableJWT, Error as SignError},
     verify::verify,
-    AttenuationKeyGenerator, Audience, FullClaims, Issuer, JWTEncoder, JWTHeader, PrivateKey,
-    PublicKey, SealedClaims, SecondsSinceEpoch, SignedJWT, SigningKeyManager,
-    VerificationKeyManager, VerificationRequirements,
+    AttenuationKeyGenerator, Audience, FullClaims, Issuer, PrivateKey, PublicKey, SealedClaims,
+    SecondsSinceEpoch, SignedJWT, SigningKeyManager, VerificationKeyManager,
+    VerificationRequirements,
 };
-use jsonwebtoken::{encode, EncodingKey};
+use jsonwebtoken::EncodingKey;
 use mockall::mock;
 use proptest::{prelude::*, prop_oneof, proptest};
 use serde::Serialize;
@@ -89,31 +89,6 @@ mock! {
     }
 }
 
-#[derive(Clone)]
-struct JsonwebtokenEncoder;
-
-impl JWTEncoder for JsonwebtokenEncoder {
-    fn encode_jwt<Claims: serde::Serialize, PrivKey: PrivateKey + ?Sized>(
-        &self,
-        header: &JWTHeader,
-        claims: &Claims,
-        signing_key: &PrivKey,
-    ) -> sign::Result<SignedJWT> {
-        let encoding_key = to_encoding_key(signing_key)?;
-        let header = {
-            let mut h = jsonwebtoken::Header::new(
-                jsonwebtoken::Algorithm::from_str(&header.algorithm)
-                    .map_err(|err| sign::Error::KeyError(Some(Box::new(err))))?,
-            );
-            h.kid = header.key_id.clone();
-            h
-        };
-        let token = encode(&header, claims, &encoding_key)
-            .map_err(|err| sign::Error::CryptoError(Some(Box::new(err))))?;
-        Ok(SignedJWT(token))
-    }
-}
-
 fn make_verification_key_manager<Expectations>(
     root_key: ed25519::Ed25519PublicKey,
     expectations: Expectations,
@@ -163,7 +138,6 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
     let (pub_root_key, priv_root_key) = key_manager.generate_attenuation_key().unwrap();
     let mut ajwt = AttenuableJWT::new_with_key_manager(
         Cow::Borrowed(&key_manager),
-        Cow::Borrowed(&JsonwebtokenEncoder),
         &priv_root_key,
         root_claims.clone(),
     )
@@ -208,7 +182,6 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 let jwts = jwts.iter().cloned().chain(iter::once(jwt)).collect();
                 ajwt = AttenuableJWT::with_key_manager(
                     Cow::Borrowed(&key_manager),
-                    Cow::Borrowed(&JsonwebtokenEncoder),
                     jwts,
                     next_priv_key,
                 );
@@ -454,7 +427,6 @@ proptest! {
         let (pub_root_key, priv_root_key) = key_manager.generate_attenuation_key().unwrap();
         let mut ajwt = AttenuableJWT::new_with_key_manager(
             Cow::Borrowed(&key_manager),
-            Cow::Borrowed(&JsonwebtokenEncoder),
             &priv_root_key,
             root_claims
         ).unwrap();

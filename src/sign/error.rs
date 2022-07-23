@@ -11,7 +11,10 @@ pub enum Error {
     KeyError(Option<Box<dyn std::error::Error>>),
     /// An error arising from cryptographic operations.
     #[error("crypto error")]
-    CryptoError(Option<Box<dyn std::error::Error>>),
+    CryptoError(Box<dyn std::error::Error>),
+    /// An error indicating invalid serialization.
+    #[error("serialization error")]
+    SerializationError(Box<dyn std::error::Error>),
 }
 
 /// Result type for signing operations.

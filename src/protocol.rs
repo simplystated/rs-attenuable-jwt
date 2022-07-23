@@ -66,6 +66,8 @@ pub trait PrivateKey: ErasedSerialize {
     fn key_id(&self) -> &str;
     /// Algorithm.
     fn algorithm(&self) -> &str;
+    /// Sign the message.
+    fn sign(&self, message: &[u8]) -> crate::sign::Result<Vec<u8>>;
 }
 
 /// A public key. The [ErasedSerialize] implementation must serialize to a JWK.
@@ -125,18 +127,6 @@ pub trait VerificationKeyManager: Clone {
 
     // Convert a [Self::JWK] into a [Self::PublicAttenuationKey].
     fn jwk_to_public_attenuation_key(&self, jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey>;
-}
-
-/// Trait for encoding JWTs.
-pub trait JWTEncoder {
-    /// Encode the provided JWT with the given `header`, `claims`, and `signing_key`.
-    /// Returns a [SignedJWT] or [crate::sign::Error].
-    fn encode_jwt<Claims: Serialize, PrivKey: PrivateKey + ?Sized>(
-        &self,
-        header: &JWTHeader,
-        claims: &Claims,
-        signing_key: &PrivKey,
-    ) -> crate::sign::Result<SignedJWT>;
 }
 
 /// JWT header.

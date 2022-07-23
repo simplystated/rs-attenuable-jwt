@@ -33,51 +33,9 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 ///
 /// # fn generate_attenuated_jwt() -> std::result::Result<(ed25519::Ed25519PublicKey, SignedJWT), Box<dyn std::error::Error>> {
 /// #   use std::{borrow::Cow, collections::HashMap, time::{SystemTime, UNIX_EPOCH}, str::FromStr};
-/// #   use attenuable_jwt::{AttenuationKeyGenerator, SigningKeyManager, JWTHeader, PrivateKey, JWTEncoder, sign::{Result, Error, AttenuableJWT}, ed25519};
+/// #   use attenuable_jwt::{AttenuationKeyGenerator, SigningKeyManager, JWTHeader, PrivateKey, sign::{Result, Error, AttenuableJWT}, ed25519};
 /// #   use jsonwebtoken::{encode, EncodingKey};
 /// #   
-/// #   #[derive(Clone)]
-/// #   struct JsonwebtokenEncoder;
-/// #   
-/// #   impl JWTEncoder for JsonwebtokenEncoder {
-/// #       fn encode_jwt<Claims: serde::Serialize, PrivKey: PrivateKey + ?Sized>(
-/// #           &self,
-/// #           header: &JWTHeader,
-/// #           claims: &Claims,
-/// #           signing_key: &PrivKey,
-/// #       ) -> Result<SignedJWT> {
-/// #               let mut json: Vec<u8> = Default::default();
-/// #               erased_serde::serialize(
-/// #                   signing_key,
-/// #                   &mut serde_json::Serializer::new(&mut json),
-/// #               )
-/// #               .map_err(|err| Error::KeyError(Some(Box::new(err))))?;
-/// #               let jwk: ed25519::JWK =
-/// #                   serde_json::from_slice(&json).map_err(|err| Error::KeyError(Some(Box::new(err))))?;
-/// #               if let Some(d) = &jwk.d {
-/// #                   let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD).map_err(|err| Error::KeyError(Some(Box::new(err))))?;
-/// #                   let d = base64::decode_config(d, base64::URL_SAFE_NO_PAD).map_err(|err| Error::KeyError(Some(Box::new(err))))?;
-/// #                   let der: Vec<_> = x.into_iter().chain(d.into_iter()).collect();
-/// #                   let encoding_key = EncodingKey::from_ed_der(&der);
-/// #                   let header = {
-/// #                       let mut h = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::from_str(
-/// #                           &header.algorithm,
-/// #                       ).map_err(|err| Error::KeyError(Some(Box::new(err))))?);
-/// #                       h.kid = header.key_id.clone();
-/// #                       h
-/// #                   };
-/// #                   let token = encode(
-/// #                       &header,
-/// #                       claims,
-/// #                       &encoding_key,
-/// #                   ).map_err(|err| Error::CryptoError(Some(Box::new(err))))?;
-/// #                   Ok(SignedJWT(token))
-/// #               } else {
-/// #                   Err(Error::KeyError(None))
-/// #               }
-/// #       }
-/// #   }
-/// #
 /// #   #[derive(Clone)]
 /// #   struct KeyManager;
 /// #
@@ -114,7 +72,7 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 /// #   };
 /// #   let key_manager = KeyManager;
 /// #   let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
-/// #   let ajwt  = AttenuableJWT::new_with_key_manager(Cow::Borrowed(&key_manager), Cow::Borrowed(&JsonwebtokenEncoder), &priv_key, claims)?;
+/// #   let ajwt  = AttenuableJWT::new_with_key_manager(Cow::Borrowed(&key_manager), &priv_key, claims)?;
 /// #   let attenuated_claims = {
 /// #       let mut claims = HashMap::new();
 /// #       claims.insert("aud".to_owned(), "restricted-audience".to_owned());
@@ -370,7 +328,7 @@ fn verify_claims(claims: &VerificationClaims, reqs: &VerificationRequirements) -
                 }
             }
 
-            return true;
+            true
         }
         VerificationRequirements::VerifySignatureOnly {
             acceptable_algorithms: _,
@@ -457,7 +415,7 @@ struct RawJWTMessage<'a>(&'a str);
 
 impl<'a> AsRef<str> for RawJWTMessage<'a> {
     fn as_ref(&self) -> &'a str {
-        &self.0
+        self.0
     }
 }
 
@@ -493,7 +451,7 @@ impl<'a> Base64Content<'a> {
             .map_err(|err| Error::InvalidBase64Encoding(Box::new(err)))
     }
 
-    fn deserialize<'b, T: DeserializeOwned>(&self) -> Result<T> {
+    fn deserialize<T: DeserializeOwned>(&self) -> Result<T> {
         let bytes = self.to_bytes()?;
         serde_json::from_slice(&bytes).map_err(|err| Error::InvalidClaimFormat(Box::new(err)))
     }
