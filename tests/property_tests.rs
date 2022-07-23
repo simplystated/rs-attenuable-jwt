@@ -1,20 +1,15 @@
 use attenuable_jwt::{
     ed25519,
-    sign::{self, AttenuableJWT, Error as SignError},
+    sign::{AttenuableJWT, Error as SignError},
     verify::verify,
-    AttenuationKeyGenerator, Audience, FullClaims, Issuer, PrivateKey, PublicKey, SealedClaims,
-    SecondsSinceEpoch, SignedJWT, SigningKeyManager, VerificationKeyManager,
-    VerificationRequirements,
+    AttenuationKeyGenerator, Audience, Issuer, PublicKey, SecondsSinceEpoch, SigningKeyManager,
+    VerificationKeyManager, VerificationRequirements,
 };
-use jsonwebtoken::EncodingKey;
 use mockall::mock;
 use proptest::{prelude::*, prop_oneof, proptest};
-use serde::Serialize;
 use std::{
     borrow::Cow,
     collections::HashMap,
-    iter,
-    str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -169,22 +164,23 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 claim_key,
                 claim_value,
             }) => {
-                let jwts = ajwt.jwts();
+                // replace our private attenuation key with an incorrect attenuation key
+                let (_, bad_priv_key) = key_manager.generate_attenuation_key().unwrap();
+                ajwt = AttenuableJWT::with_key_manager(
+                    Cow::Borrowed(&key_manager),
+                    ajwt.jwts().to_vec(),
+                    bad_priv_key,
+                );
+
+                // then, attenuate
                 let claims = {
                     let mut claims = HashMap::new();
                     claims.insert(claim_key, claim_value);
                     claims
                 };
-                let (_, bad_priv_key) = key_manager.generate_attenuation_key().unwrap();
-                let (next_pub_key, next_priv_key) = key_manager.generate_attenuation_key().unwrap();
-                let next_pub_key_jwk = ed25519::JWK::from(next_pub_key);
-                let jwt = make_inner_jwt(bad_priv_key, claims, next_pub_key_jwk);
-                let jwts = jwts.iter().cloned().chain(iter::once(jwt)).collect();
-                ajwt = AttenuableJWT::with_key_manager(
-                    Cow::Borrowed(&key_manager),
-                    jwts,
-                    next_priv_key,
-                );
+                ajwt = ajwt.attenuate(claims).unwrap();
+
+                // this should cause the whole chain to fail
                 expect_fail = true;
             }
             Operation::Seal { issuer, audience } => {
@@ -234,14 +230,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 let nbf = SecondsSinceEpoch(current_time);
                 let iss = Issuer("bad-issuer".to_string());
                 let aud = Audience(EXPECTED_AUDIENCE.to_owned());
-                let token = make_envelope_jwt(
-                    ajwt.private_attenuation_key().clone(),
-                    exp,
-                    nbf,
-                    iss,
-                    aud,
-                    ajwt.jwts().iter().cloned().collect(),
-                );
+                let token = ajwt.seal(exp, nbf, Some(iss), Some(aud)).unwrap();
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
                 let verified = verify(verification_key_manager, token, resolve_claims);
@@ -256,14 +245,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 let nbf = SecondsSinceEpoch(current_time);
                 let iss = Issuer(EXPECTED_ISSUER.to_owned());
                 let aud = Audience(EXPECTED_AUDIENCE.to_owned());
-                let token = make_envelope_jwt(
-                    ajwt.private_attenuation_key().clone(),
-                    exp,
-                    nbf,
-                    iss,
-                    aud,
-                    ajwt.jwts().iter().cloned().collect(),
-                );
+                let token = ajwt.seal(exp, nbf, Some(iss), Some(aud)).unwrap();
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
                 let verified = verify(verification_key_manager, token, resolve_claims);
@@ -278,14 +260,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 let nbf = SecondsSinceEpoch(current_time + 300);
                 let iss = Issuer(EXPECTED_ISSUER.to_owned());
                 let aud = Audience(EXPECTED_AUDIENCE.to_owned());
-                let token = make_envelope_jwt(
-                    ajwt.private_attenuation_key().clone(),
-                    exp,
-                    nbf,
-                    iss,
-                    aud,
-                    ajwt.jwts().iter().cloned().collect(),
-                );
+                let token = ajwt.seal(exp, nbf, Some(iss), Some(aud)).unwrap();
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
                 let verified = verify(verification_key_manager, token, resolve_claims);
@@ -300,14 +275,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 let nbf = SecondsSinceEpoch(current_time);
                 let iss = Issuer(EXPECTED_ISSUER.to_owned());
                 let aud = Audience("bad-audience".to_owned());
-                let token = make_envelope_jwt(
-                    ajwt.private_attenuation_key().clone(),
-                    exp,
-                    nbf,
-                    iss,
-                    aud,
-                    ajwt.jwts().iter().cloned().collect(),
-                );
+                let token = ajwt.seal(exp, nbf, Some(iss), Some(aud)).unwrap();
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
                 let verified = verify(verification_key_manager, token, resolve_claims);
@@ -323,14 +291,12 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 let iss = Issuer(EXPECTED_ISSUER.to_owned());
                 let aud = Audience(EXPECTED_AUDIENCE.to_owned());
                 let (_, bad_key) = key_manager.generate_attenuation_key().unwrap();
-                let token = make_envelope_jwt(
+                let bad_key_ajwt = AttenuableJWT::with_key_manager(
+                    Cow::Borrowed(&key_manager),
+                    ajwt.jwts().to_vec(),
                     bad_key,
-                    exp,
-                    nbf,
-                    iss,
-                    aud,
-                    ajwt.jwts().iter().cloned().collect(),
                 );
+                let token = bad_key_ajwt.seal(exp, nbf, Some(iss), Some(aud)).unwrap();
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
                 let verified = verify(verification_key_manager, token, resolve_claims);
@@ -342,71 +308,6 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
             }
         }
     }
-}
-
-fn to_encoding_key<PrivKey: PrivateKey + ?Sized>(k: &PrivKey) -> sign::Result<EncodingKey> {
-    let mut json: Vec<u8> = Default::default();
-    erased_serde::serialize(k, &mut serde_json::Serializer::new(&mut json))
-        .map_err(|err| sign::Error::KeyError(Some(Box::new(err))))?;
-    let jwk: ed25519::JWK =
-        serde_json::from_slice(&json).map_err(|err| sign::Error::KeyError(Some(Box::new(err))))?;
-    if let Some(d) = &jwk.d {
-        let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD)
-            .map_err(|err| sign::Error::KeyError(Some(Box::new(err))))?;
-        let d = base64::decode_config(&d, base64::URL_SAFE_NO_PAD)
-            .map_err(|err| sign::Error::KeyError(Some(Box::new(err))))?;
-        let der: Vec<_> = x.into_iter().chain(d.into_iter()).collect();
-        let encoding_key = EncodingKey::from_ed_der(&der);
-        Ok(encoding_key)
-    } else {
-        Err(sign::Error::KeyError(None))?
-    }
-}
-
-fn make_inner_jwt<SignWith: PrivateKey, NextKeyJWK: Serialize>(
-    sign_with: SignWith,
-    claims: HashMap<String, String>,
-    next_key_jwk: NextKeyJWK,
-) -> SignedJWT {
-    let header = {
-        let mut header = jsonwebtoken::Header::new(
-            jsonwebtoken::Algorithm::from_str(&sign_with.algorithm()).unwrap(),
-        );
-        header.kid = Some(sign_with.key_id().to_owned());
-        header
-    };
-    let claims: FullClaims<NextKeyJWK, HashMap<String, String>> =
-        FullClaims::new(claims, next_key_jwk);
-    let inner_jwt =
-        jsonwebtoken::encode(&header, &claims, &to_encoding_key(&sign_with).unwrap()).unwrap();
-    SignedJWT(inner_jwt)
-}
-
-fn make_envelope_jwt<SignWith: PrivateKey>(
-    sign_with: SignWith,
-    exp: SecondsSinceEpoch,
-    nbf: SecondsSinceEpoch,
-    issuer: Issuer,
-    audience: Audience,
-    inner_jwts: Vec<SignedJWT>,
-) -> SignedJWT {
-    let header = {
-        let mut header = jsonwebtoken::Header::new(
-            jsonwebtoken::Algorithm::from_str(&sign_with.algorithm()).unwrap(),
-        );
-        header.kid = Some(sign_with.key_id().to_owned());
-        header
-    };
-    let full_claims = SealedClaims {
-        exp: Some(exp),
-        nbf: Some(nbf),
-        iss: Some(issuer),
-        aud: Some(audience),
-        jwts: inner_jwts,
-    };
-    let token =
-        jsonwebtoken::encode(&header, &full_claims, &to_encoding_key(&sign_with).unwrap()).unwrap();
-    SignedJWT(token)
 }
 
 proptest! {
