@@ -17,7 +17,7 @@ impl AsRef<str> for SignedJWT {
 /// Claims for a sealed attenuated JWT.
 /// These are the claims of the JWT produced by [crate::sign::AttenuableJWT::seal].
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SealedClaims {
+pub(crate) struct SealedClaims {
     /// Expiration.
     pub exp: Option<SecondsSinceEpoch>,
     /// Not before.
@@ -131,7 +131,7 @@ pub trait VerificationKeyManager: Clone {
 
 /// JWT header.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct JWTHeader {
+pub(crate) struct JWTHeader {
     /// Key ID for the key used to sign this JWT.
     #[serde(rename = "kid")]
     pub key_id: Option<String>,
@@ -211,7 +211,7 @@ pub trait AttenuationKeyGenerator<
 
 /// The full set of claims for an attenuated JWT, combining user-provided claims with the attenuation key claim.
 #[derive(Serialize, Deserialize)]
-pub struct FullClaims<JWK, Claims> {
+pub(crate) struct FullClaims<JWK, Claims> {
     /// User-provided claims.
     #[serde(flatten)]
     pub user_provided_claims: Claims,
