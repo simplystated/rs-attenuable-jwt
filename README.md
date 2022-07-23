@@ -1,4 +1,4 @@
-# rs-attenuable-jwt
+# rs-attenuable-jwt &emsp; [![CI](https://github.com/simplystated/rs-attenuable-jwt/actions/workflows/ci.yaml/badge.svg)](https://github.com/simplystated/rs-attenuable-jwt/actions/workflows/ci.yaml) [![Latest Version](https://img.shields.io/crates/v/attenuable-jwt.svg)](https://crates.io/crates/attenuable-jwt) [![Rust Documentation](https://docs.rs/attenuable-jwt/badge.svg)](https://docs.rs/attenuable-jwt) ![Crates.io](https://img.shields.io/crates/l/attenuable-jwt)
 Attenuable JWT implementation in Rust
 
 ## What is attenuation good for?
