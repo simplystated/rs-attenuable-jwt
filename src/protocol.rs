@@ -76,6 +76,8 @@ pub trait PublicKey: ErasedSerialize {
     fn algorithm(&self) -> &str;
     /// Intended use for the key.
     fn key_use(&self) -> KeyUse;
+    /// Verify the signature of the message.
+    fn verify(&self, message: &[u8], signature: &[u8]) -> bool;
 }
 
 erased_serde::serialize_trait_object!(PublicKey);
@@ -125,26 +127,6 @@ pub trait VerificationKeyManager: Clone {
     fn jwk_to_public_attenuation_key(&self, jwk: &Self::JWK) -> Option<Self::PublicAttenuationKey>;
 }
 
-/// Trait for decoding JWTs.
-pub trait JWTDecoder {
-    /// Decode the provided JWT given the `verification_key` and the `verification_reqs`.
-    /// If the `verification_reqs` are not met, return an `Err` of [crate::verify::Error].
-    /// If the `verification_reqs` are met, return `Ok(Claims)`.
-    fn decode_jwt<Claims: DeserializeOwned, PubKey: PublicKey + ?Sized>(
-        &self,
-        jwt: &SignedJWT,
-        verification_key: &PubKey,
-        verification_reqs: &VerificationRequirements,
-    ) -> crate::verify::Result<Claims>;
-    /// INSECURELY decode the JWT, returning its contained `Claims` without verifying the signature or claims.
-    fn insecurely_decode_jwt<Claims: DeserializeOwned>(
-        &self,
-        jwt: &SignedJWT,
-    ) -> crate::verify::Result<Claims>;
-    /// Decode the JWT's header only.
-    fn decode_jwt_header(&self, jwt: &SignedJWT) -> crate::verify::Result<JWTHeader>;
-}
-
 /// Trait for encoding JWTs.
 pub trait JWTEncoder {
     /// Encode the provided JWT with the given `header`, `claims`, and `signing_key`.
@@ -187,6 +169,21 @@ pub enum VerificationRequirements {
         /// Acceptable signing algorithms.
         acceptable_algorithms: Vec<String>,
     },
+}
+
+impl VerificationRequirements {
+    /// Acceptable signing algorithms.
+    pub fn acceptable_algorithms(&self) -> &[String] {
+        match self {
+            VerificationRequirements::VerifyClaims {
+                acceptable_algorithms,
+                ..
+            } => acceptable_algorithms,
+            VerificationRequirements::VerifySignatureOnly {
+                acceptable_algorithms,
+            } => acceptable_algorithms,
+        }
+    }
 }
 
 /// Trait handling signing and key generation for [crate::sign::AttenuableJWT].

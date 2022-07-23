@@ -1,17 +1,15 @@
 use attenuable_jwt::{
     ed25519,
     sign::{self, AttenuableJWT, Error as SignError},
-    verify::{self, verify},
-    AttenuationKeyGenerator, Audience, FullClaims, Issuer, JWTDecoder, JWTEncoder, JWTHeader,
-    PrivateKey, PublicKey, SealedClaims, SecondsSinceEpoch, SignedJWT, SigningKeyManager,
+    verify::verify,
+    AttenuationKeyGenerator, Audience, FullClaims, Issuer, JWTEncoder, JWTHeader, PrivateKey,
+    PublicKey, SealedClaims, SecondsSinceEpoch, SignedJWT, SigningKeyManager,
     VerificationKeyManager, VerificationRequirements,
 };
-use jsonwebtoken::{
-    decode, decode_header, encode, Algorithm, DecodingKey, EncodingKey, Validation,
-};
+use jsonwebtoken::{encode, EncodingKey};
 use mockall::mock;
 use proptest::{prelude::*, prop_oneof, proptest};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::Serialize;
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -113,127 +111,6 @@ impl JWTEncoder for JsonwebtokenEncoder {
         let token = encode(&header, claims, &encoding_key)
             .map_err(|err| sign::Error::CryptoError(Some(Box::new(err))))?;
         Ok(SignedJWT(token))
-    }
-}
-
-struct JsonwebtokenDecoder;
-
-impl JWTDecoder for JsonwebtokenDecoder {
-    fn decode_jwt<Claims: DeserializeOwned, PubKey: PublicKey + ?Sized>(
-        &self,
-        jwt: &SignedJWT,
-        verification_key: &PubKey,
-        verification_reqs: &VerificationRequirements,
-    ) -> verify::Result<Claims> {
-        let mut json: Vec<u8> = Default::default();
-        erased_serde::serialize(
-            verification_key,
-            &mut serde_json::Serializer::new(&mut json),
-        )
-        .map_err(|_| verify::Error::InvalidKey)?;
-        let jwk: ed25519::JWK =
-            serde_json::from_slice(&json).map_err(|_| verify::Error::InvalidKey)?;
-        let x = base64::decode_config(&jwk.x, base64::URL_SAFE_NO_PAD)
-            .map_err(|_| verify::Error::MalformedAttenuationKeyJWK)?;
-        let decoding_key = DecodingKey::from_ed_der(&x);
-        Ok(decode(
-            jwt.as_ref(),
-            &decoding_key,
-            &validation_config(verification_reqs)?,
-        )
-        .map_err(|err| verify::Error::JWTError(Some(Box::new(err))))?
-        .claims)
-    }
-    fn insecurely_decode_jwt<Claims: DeserializeOwned>(
-        &self,
-        jwt: &SignedJWT,
-    ) -> verify::Result<Claims> {
-        let no_validation = {
-            let mut v = Validation::default();
-            v.required_spec_claims.clear();
-            v.insecure_disable_signature_validation();
-            v
-        };
-        Ok(decode(
-            jwt.as_ref(),
-            &DecodingKey::from_secret("fake".as_ref()),
-            &no_validation,
-        )
-        .map_err(|err| verify::Error::JWTError(Some(Box::new(err))))?
-        .claims)
-    }
-    fn decode_jwt_header(&self, jwt: &SignedJWT) -> verify::Result<JWTHeader> {
-        let header = decode_header(jwt.as_ref())
-            .map_err(|err| verify::Error::JWTError(Some(Box::new(err))))?;
-        Ok(JWTHeader {
-            key_id: header.kid,
-            algorithm: format!("{:?}", header.alg),
-        })
-    }
-}
-
-fn validation_config(reqs: &VerificationRequirements) -> verify::Result<Validation> {
-    match reqs {
-        VerificationRequirements::VerifyClaims {
-            acceptable_algorithms,
-            acceptable_audiences,
-            acceptable_issuers,
-            acceptable_subject,
-        } => {
-            let required_spec_claims = {
-                let mut required_spec_claims = vec!["exp".to_owned()];
-                if acceptable_audiences.is_some() {
-                    required_spec_claims.push("aud".to_owned());
-                }
-                if acceptable_issuers.is_some() {
-                    required_spec_claims.push("iss".to_owned());
-                }
-                if acceptable_subject.is_some() {
-                    required_spec_claims.push("sub".to_owned());
-                }
-                required_spec_claims
-            };
-            let mut v = Validation::default();
-            v.set_required_spec_claims(required_spec_claims.as_slice());
-            v.validate_nbf = true;
-            if let Some(issuers) = acceptable_issuers.as_ref() {
-                v.set_issuer(
-                    issuers
-                        .iter()
-                        .map(|i| i.as_ref())
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                )
-            }
-            if let Some(audiences) = acceptable_audiences.as_ref() {
-                v.set_audience(
-                    audiences
-                        .iter()
-                        .map(|a| a.as_ref())
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                )
-            }
-            v.sub = acceptable_subject.clone();
-            v.algorithms = acceptable_algorithms
-                .iter()
-                .map(|alg| alg.to_string().parse())
-                .collect::<std::result::Result<_, _>>()
-                .map_err(|err| verify::Error::JWTError(Some(Box::new(err))))?;
-            Ok(v)
-        }
-        VerificationRequirements::VerifySignatureOnly {
-            acceptable_algorithms,
-        } => {
-            let mut v = Validation::default();
-            v.set_required_spec_claims(&[] as &[&str]);
-            v.algorithms = acceptable_algorithms
-                .iter()
-                .map(|alg| alg.parse())
-                .collect::<std::result::Result<Vec<Algorithm>, jsonwebtoken::errors::Error>>()
-                .map_err(|err| verify::Error::JWTError(Some(Box::new(err))))?;
-            Ok(v)
-        }
     }
 }
 
@@ -361,12 +238,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                             });
                         m
                     });
-                let verified = verify(
-                    verification_key_manager,
-                    &JsonwebtokenDecoder,
-                    sealed,
-                    resolve_claims,
-                );
+                let verified = verify(verification_key_manager, sealed, resolve_claims);
 
                 if expect_fail {
                     assert!(
@@ -399,12 +271,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 );
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
-                let verified = verify(
-                    verification_key_manager,
-                    &JsonwebtokenDecoder,
-                    token,
-                    resolve_claims,
-                );
+                let verified = verify(verification_key_manager, token, resolve_claims);
                 assert!(
                     verified.is_err(),
                     "expected verification failure, got: {:?}",
@@ -426,12 +293,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 );
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
-                let verified = verify(
-                    verification_key_manager,
-                    &JsonwebtokenDecoder,
-                    token,
-                    resolve_claims,
-                );
+                let verified = verify(verification_key_manager, token, resolve_claims);
                 assert!(
                     verified.is_err(),
                     "expected verification failure, got: {:?}",
@@ -453,12 +315,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 );
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
-                let verified = verify(
-                    verification_key_manager,
-                    &JsonwebtokenDecoder,
-                    token,
-                    resolve_claims,
-                );
+                let verified = verify(verification_key_manager, token, resolve_claims);
                 assert!(
                     verified.is_err(),
                     "expected verification failure, got: {:?}",
@@ -480,12 +337,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 );
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
-                let verified = verify(
-                    verification_key_manager,
-                    &JsonwebtokenDecoder,
-                    token,
-                    resolve_claims,
-                );
+                let verified = verify(verification_key_manager, token, resolve_claims);
                 assert!(
                     verified.is_err(),
                     "expected verification failure, got: {:?}",
@@ -508,12 +360,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 );
                 let verification_key_manager =
                     make_verification_key_manager(pub_root_key.clone(), add_expected_verifications);
-                let verified = verify(
-                    verification_key_manager,
-                    &JsonwebtokenDecoder,
-                    token,
-                    resolve_claims,
-                );
+                let verified = verify(verification_key_manager, token, resolve_claims);
                 assert!(
                     verified.is_err(),
                     "expected verification failure, got: {:?}",
@@ -631,7 +478,6 @@ proptest! {
         };
         let verified_claims = verify(
             key_manager,
-            &JsonwebtokenDecoder,
             sealed_jwt,
             |mut c1, c2| {
                 c1.extend(c2);

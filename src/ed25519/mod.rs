@@ -62,6 +62,13 @@ impl PublicKey for Ed25519PublicKey {
     fn key_use(&self) -> KeyUse {
         KeyUse::Signing
     }
+
+    fn verify(&self, message: &[u8], signature: &[u8]) -> bool {
+        let public_key =
+            ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, &self.x);
+        let res = public_key.verify(message, signature);
+        res.is_ok()
+    }
 }
 
 impl Ed25519PublicKey {
