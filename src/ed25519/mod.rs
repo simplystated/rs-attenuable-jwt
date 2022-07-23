@@ -44,7 +44,7 @@ impl PrivateKey for Ed25519PrivateKey {
 
     fn sign(&self, message: &[u8]) -> crate::sign::Result<Vec<u8>> {
         let key_pair = Ed25519KeyPair::from_pkcs8(&self.pkcs8_bytes)
-            .map_err(|err| crate::sign::Error::CryptoError(Box::new(err)))?;
+            .map_err(|_| crate::sign::Error::CryptoError)?;
         Ok(key_pair.sign(message).as_ref().iter().map(|u| *u).collect())
     }
 }
