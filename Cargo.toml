@@ -1,8 +1,14 @@
 [package]
 name = "attenuable-jwt"
+description = "Create and verify JWTs that support secure offline attenuation"
+license = "MIT OR Apache-2.0"
 authors = ["Adam Berger <adam@simplystated.dev>"]
 version = "0.1.0"
 edition = "2021"
+keywords = ["JWT", "jwt", "token", "web"]
+repository = "https://github.com/simplystated/rs-attenuable-jwt"
+homepage = "https://github.com/simplystated/rs-attenuable-jwt"
+readme = "README.md"
 
 [lib]
 
