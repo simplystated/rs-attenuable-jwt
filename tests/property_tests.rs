@@ -129,7 +129,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let key_manager = SignKeyManager;
+    let key_manager = SignKeyManager::new();
     let (pub_root_key, priv_root_key) = key_manager.generate_attenuation_key().unwrap();
     let mut ajwt = AttenuableJWT::new_with_key_manager(
         Cow::Borrowed(&key_manager),
@@ -324,7 +324,7 @@ proptest! {
             claims.insert(claim_name.to_owned(), root_claim.clone());
             claims
         };
-        let key_manager = SignKeyManager;
+        let key_manager = SignKeyManager::new();
         let (pub_root_key, priv_root_key) = key_manager.generate_attenuation_key().unwrap();
         let mut ajwt = AttenuableJWT::new_with_key_manager(
             Cow::Borrowed(&key_manager),
@@ -363,7 +363,17 @@ proptest! {
 }
 
 #[derive(Clone)]
-struct SignKeyManager;
+struct SignKeyManager {
+    key_gen: ed25519::EddsaKeyGen<rand::rngs::StdRng>
+}
+
+impl SignKeyManager {
+    pub fn new() -> Self {
+        Self {
+            key_gen: ed25519::EddsaKeyGen::new_with_std_rng(),
+        }
+    }
+}
 
 impl AttenuationKeyGenerator<ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey>
     for SignKeyManager
@@ -371,7 +381,7 @@ impl AttenuationKeyGenerator<ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateK
     fn generate_attenuation_key(
         &self,
     ) -> Result<(ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey), SignError> {
-        ed25519::EddsaKeyGen.generate_attenuation_key()
+        self.key_gen.generate_attenuation_key()
     }
 }
 

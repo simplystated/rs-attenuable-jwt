@@ -4,15 +4,19 @@
 use std::borrow::Cow;
 
 mod error;
+mod jwt;
 
-use base64::URL_SAFE_NO_PAD;
 pub use error::{Error, Result};
-use serde::Serialize;
 
 use crate::protocol::{
     Audience, FullClaims, Issuer, JWTHeader, PrivateKey, SealedClaims, SecondsSinceEpoch,
     SignedJWT, SigningKeyManager,
 };
+
+#[cfg(not(feature = "integration-test"))]
+use jwt::encode_jwt;
+#[cfg(feature = "integration-test")]
+pub use jwt::encode_jwt;
 
 /// An AttenuableJWT carries a set of immutable claims but allows for the creation of a JWT with an attenuated
 /// set of claims.
@@ -22,13 +26,23 @@ use crate::protocol::{
 /// use attenuable_jwt::{AttenuationKeyGenerator, SigningKeyManager, SecondsSinceEpoch, Issuer, sign::{Result, Error, AttenuableJWT}, ed25519};
 ///
 /// #[derive(Clone)]
-/// struct KeyManager;
+/// struct KeyManager {
+///     key_gen: ed25519::EddsaKeyGen<rand::rngs::StdRng>,
+/// }
+/// 
+/// impl KeyManager {
+///     pub fn new() -> Self {
+///         Self {
+///             key_gen: ed25519::EddsaKeyGen::new_with_std_rng(),
+///         }
+///     }
+/// }
 ///
 /// impl AttenuationKeyGenerator<ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey> for KeyManager {
 ///     fn generate_attenuation_key(
 ///         &self,
 ///     ) -> Result<(ed25519::Ed25519PublicKey, ed25519::Ed25519PrivateKey)> {
-///         ed25519::EddsaKeyGen.generate_attenuation_key()
+///         self.key_gen.generate_attenuation_key()
 ///     }
 /// }
 ///
@@ -56,7 +70,7 @@ use crate::protocol::{
 ///     claims.insert("sub".to_owned(), "itsme".to_owned());
 ///     claims
 /// };
-/// let key_manager = KeyManager;
+/// let key_manager = KeyManager::new();
 /// let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
 /// let ajwt = AttenuableJWT::new_with_key_manager(Cow::Borrowed(&key_manager), &priv_key, claims)?;
 /// let attenuated_claims = {
@@ -176,32 +190,4 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
 
         Ok(token)
     }
-}
-
-fn encode_jwt<Claims: Serialize, PrivKey: PrivateKey + ?Sized>(
-    header: &JWTHeader,
-    claims: &Claims,
-    signing_key: &PrivKey,
-) -> Result<SignedJWT> {
-    let header_bytes =
-        serde_json::to_vec(&header).map_err(|err| Error::SerializationError(Box::new(err)))?;
-    let claims_bytes =
-        serde_json::to_vec(&claims).map_err(|err| Error::SerializationError(Box::new(err)))?;
-    let header_b64 = base64::encode_config(&header_bytes, URL_SAFE_NO_PAD);
-    let claims_b64 = base64::encode_config(&claims_bytes, URL_SAFE_NO_PAD);
-    let message: Vec<_> = header_b64
-        .as_bytes()
-        .iter()
-        .chain(".".as_bytes())
-        .chain(claims_b64.as_bytes())
-        .copied()
-        .collect();
-    let signature = signing_key.sign(&message)?;
-    let signature_b64 = base64::encode_config(&signature, URL_SAFE_NO_PAD);
-    let mut jwt = header_b64;
-    jwt.push('.');
-    jwt.push_str(&claims_b64);
-    jwt.push('.');
-    jwt.push_str(&signature_b64);
-    Ok(SignedJWT(jwt))
 }
