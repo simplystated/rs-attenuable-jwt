@@ -1,0 +1,48 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'attenuable-jwt'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=attenuable-jwt",
+                    "--features=integration-test"
+                ],
+                "filter": {
+                    "name": "attenuable-jwt",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'property_tests'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=property_tests",
+                    "--package=attenuable-jwt",
+                    "--features=integration-test"
+                ],
+                "filter": {
+                    "name": "property_tests",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
