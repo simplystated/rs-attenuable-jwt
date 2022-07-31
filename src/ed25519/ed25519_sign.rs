@@ -40,7 +40,7 @@ impl<RNG: RngCore + CryptoRng> AttenuationKeyGenerator<Ed25519PublicKey, Ed25519
     fn generate_attenuation_key(&self) -> Result<(Ed25519PublicKey, Ed25519PrivateKey)> {
         let mut rng = self.rng.lock().map_err(|_| Error::CryptoError)?;
         let keypair = ed25519_dalek::Keypair::generate(rng.deref_mut());
-        let pub_key = Ed25519PublicKey::new(keypair.public.clone());
+        let pub_key = Ed25519PublicKey::new(keypair.public);
         let priv_key = Ed25519PrivateKey::new("aky".to_owned(), keypair);
         Ok((pub_key, priv_key))
     }
