@@ -13,9 +13,9 @@ use crate::protocol::{
     SignedJWT, SigningKeyManager,
 };
 
-#[cfg(not(feature = "integration-test"))]
+#[cfg(not(any(feature = "integration-test", test)))]
 use jwt::encode_jwt;
-#[cfg(feature = "integration-test")]
+#[cfg(any(feature = "integration-test", test))]
 pub use jwt::encode_jwt;
 
 /// An AttenuableJWT carries a set of immutable claims but allows for the creation of a JWT with an attenuated
@@ -89,18 +89,7 @@ pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
     private_attenuation_key: SKM::PrivateAttenuationKey,
 }
 
-#[cfg(feature = "integration-test")]
-impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
-    /// Testing-only access to the current set of JWTs
-    pub fn jwts(&self) -> &[SignedJWT] {
-        &self.jwts
-    }
-
-    /// Testing-only access to the current private attenuation key
-    pub fn private_attenuation_key(&self) -> &SKM::PrivateAttenuationKey {
-        &self.private_attenuation_key
-    }
-}
+impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {}
 
 impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the provided [crate::SigningKeyManager].
@@ -189,5 +178,25 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
         let token = encode_jwt(&header, &claims, &self.private_attenuation_key)?;
 
         Ok(token)
+    }
+
+    /// The chain of inner JWTs contained in this AttenuableJWT, from least to most attenuated.
+    /// 
+    /// WARNING: the only safe thing to do with this in production is to serialize it with the 
+    /// associated [Self::private_attenuation_key] to create a new AttenuableJWT via
+    /// [AttenuableJWT::with_jwts_and_attenuation_key].
+    pub fn jwts(&self) -> &[SignedJWT] {
+        &self.jwts
+    }
+
+    /// The *PRIVATE* attenuation key associated with the last JWT in the [Self::jwts] chain.
+    /// Anyone with this private key can seal the jwt chain as it currently stands, regardless
+    /// of any future attenuation.
+    /// 
+    /// WARNING: the only safe thing to do with this in production is to serialize it with the 
+    /// associated [Self::jwts] to create a new AttenuableJWT via
+    /// [AttenuableJWT::with_jwts_and_attenuation_key].
+    pub fn private_attenuation_key(&self) -> &SKM::PrivateAttenuationKey {
+        &self.private_attenuation_key
     }
 }

@@ -65,11 +65,4 @@ If you need to stick with regular old JWTs but would like the benefits of chain 
 
 ## Contributing
 
-### Running tests
-
-Run tests with the `integration-test` feature enabled.
-The integration tests depend on access to some internals that we do not expose to clients.
-
-```bash
-cargo test --features=integration-test
-```
+We welcome contributions. The core functionality of the library must be accessible in wasm32-unknown-unknown and wasm32-wasi environments in addition to linux targets, though additional functionality may be provided under feature flags.

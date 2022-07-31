@@ -55,7 +55,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --features=integration-test
   clippy:
     name: Clippy
     runs-on: ubuntu-latest

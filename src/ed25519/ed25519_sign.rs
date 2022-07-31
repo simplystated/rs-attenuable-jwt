@@ -23,7 +23,7 @@ impl<RNG: RngCore + CryptoRng> EddsaKeyGen<RNG> {
     }
 }
 
-#[cfg(feature = "rng")]
+#[cfg(any(feature = "rng", test))]
 impl EddsaKeyGen<rand::rngs::StdRng> {
     /// Create a new EddsaKeyGen with the standard random number generator, seeded with system entropy.
     pub fn new_with_std_rng() -> Self {
