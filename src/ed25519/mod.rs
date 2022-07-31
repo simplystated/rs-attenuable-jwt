@@ -20,8 +20,8 @@ pub use ed25519_sign::EddsaKeyGen;
 pub const EDDSA_ALGORITHM: &str = "EdDSA";
 
 /// Private key for the ed25519 algorithm.
-#[derive(Serialize)]
-#[serde(into = "JWK")]
+#[derive(Serialize, Deserialize)]
+#[serde(into = "JWK", try_from = "JWK")]
 pub struct Ed25519PrivateKey {
     key_id: String,
     private_key: Ed25519DalekKeyPair,
@@ -105,7 +105,7 @@ impl Ed25519PublicKey {
 }
 
 /// JWK for [Ed25519PublicKey]s and [Ed25519PrivateKey]s.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct JWK {
     /// Key ID.
     pub kid: String,
@@ -127,8 +127,23 @@ pub struct JWK {
     pub d: Option<String>,
 }
 
+impl std::fmt::Debug for JWK {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JWK")
+            .field("kid", &self.kid)
+            .field("key_use", &self.key_use)
+            .field("key_ops", &self.key_ops)
+            .field("alg", &self.alg)
+            .field("kty", &self.kty)
+            .field("crv", &self.crv)
+            .field("x", &self.x)
+            .field("d", &self.d.as_ref().map(|_| "***"))
+            .finish()
+    }
+}
+
 /// Key operation.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub enum KeyOp {
     /// Sign.
     #[serde(rename = "sign")]
@@ -195,6 +210,14 @@ impl TryFrom<&JWK> for Ed25519PublicKey {
             key_id: jwk.kid.clone(),
             public_key,
         })
+    }
+}
+
+impl TryFrom<JWK> for Ed25519PrivateKey {
+    type Error = crate::verify::Error;
+
+    fn try_from(jwk: JWK) -> std::result::Result<Self, Self::Error> {
+        Ed25519PrivateKey::try_from(&jwk)
     }
 }
 

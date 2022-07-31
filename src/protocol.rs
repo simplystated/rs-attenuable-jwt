@@ -4,7 +4,7 @@ use erased_serde::Serialize as ErasedSerialize;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Newtype struct for a string representing a signed JWT.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(transparent)]
 pub struct SignedJWT(pub String);
 
@@ -86,7 +86,7 @@ erased_serde::serialize_trait_object!(PublicKey);
 
 /// Key use identifiers.
 /// Used in the `use` claim of a JWK.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum KeyUse {
     /// Encryption.
     #[serde(rename = "enc")]
