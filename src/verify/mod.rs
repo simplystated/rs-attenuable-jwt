@@ -80,7 +80,7 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 /// #   };
 /// #   let key_manager = KeyManager::new();
 /// #   let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
-/// #   let ajwt  = AttenuableJWT::new_with_key_manager(Cow::Borrowed(&key_manager), &priv_key, claims)?;
+/// #   let ajwt  = AttenuableJWT::with_root_key_and_claims(Cow::Borrowed(&key_manager), &priv_key, claims)?;
 /// #   let attenuated_claims = {
 /// #       let mut claims = HashMap::new();
 /// #       claims.insert("aud".to_owned(), "restricted-audience".to_owned());
@@ -555,14 +555,14 @@ mod test {
     fn test_wrong_aky_chain() -> Result<()> {
         let km = SignKeyManager::new();
         let (root_pub_key, root_priv_key) = km.generate_attenuation_key()?;
-        let ajwk = AttenuableJWT::new_with_key_manager(
+        let ajwk = AttenuableJWT::with_root_key_and_claims(
             Cow::Borrowed(&km),
             &root_priv_key,
             HashMap::new(),
         )
         .map_err(|err| Error::InvalidAttenuationKey(Box::new(err)))?;
         let (_, wrong_aky) = km.generate_attenuation_key()?;
-        let ajwk = AttenuableJWT::with_key_manager(
+        let ajwk = AttenuableJWT::with_jwts_and_attenuation_key(
             Cow::Borrowed(&km),
             ajwk.jwts().to_vec(),
             wrong_aky,
@@ -629,14 +629,14 @@ mod test {
     fn test_wrong_envelope_key() -> Result<()> {
         let km = SignKeyManager::new();
         let (_, root_priv_key) = km.generate_attenuation_key()?;
-        let ajwk = AttenuableJWT::new_with_key_manager(
+        let ajwk = AttenuableJWT::with_root_key_and_claims(
             Cow::Borrowed(&km),
             &root_priv_key,
             HashMap::new(),
         )
         .map_err(|err| Error::InvalidAttenuationKey(Box::new(err)))?;
         let (_, wrong_aky) = km.generate_attenuation_key()?;
-        let ajwk = AttenuableJWT::with_key_manager(
+        let ajwk = AttenuableJWT::with_jwts_and_attenuation_key(
             Cow::Borrowed(&km),
             ajwk.jwts().to_vec(),
             wrong_aky,

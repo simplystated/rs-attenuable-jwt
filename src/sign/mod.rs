@@ -72,7 +72,7 @@ pub use jwt::encode_jwt;
 /// };
 /// let key_manager = KeyManager::new();
 /// let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
-/// let ajwt = AttenuableJWT::new_with_key_manager(Cow::Borrowed(&key_manager), &priv_key, claims)?;
+/// let ajwt = AttenuableJWT::with_root_key_and_claims(Cow::Borrowed(&key_manager), &priv_key, claims)?;
 /// let attenuated_claims = {
 ///     let mut claims = HashMap::new();
 ///     claims.insert("aud".to_owned(), "restricted-audience".to_owned());
@@ -106,7 +106,7 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the provided [crate::SigningKeyManager].
     /// Invariant: the private_attenuation_key must be the private key corresponding to the public key found in
     /// `jwts.last().unwrap().claim("aky")`.
-    pub fn with_key_manager(
+    pub fn with_jwts_and_attenuation_key(
         key_manager: Cow<'a, SKM>,
         jwts: Vec<SignedJWT>,
         private_attenuation_key: SKM::PrivateAttenuationKey,
@@ -122,7 +122,7 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     /// The `root_key` will be used to sign this initial JWT.
     /// `claims` will be augmented with an `aky` claim containing the public counterpart to the `private_attenuation_key`
     /// in the returned AttenuableJWT.
-    pub fn new_with_key_manager<RootKey: PrivateKey>(
+    pub fn with_root_key_and_claims<RootKey: PrivateKey>(
         key_manager: Cow<'a, SKM>,
         root_key: &RootKey,
         claims: SKM::Claims,
@@ -147,7 +147,7 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     /// carries the provided claims. When verifying, clients can ensure that the provided claims only restrict the existing
     /// claims.
     pub fn attenuate(&self, claims: SKM::Claims) -> Result<Self> {
-        let mut attenuated = Self::new_with_key_manager(
+        let mut attenuated = Self::with_root_key_and_claims(
             self.key_manager.clone(),
             &self.private_attenuation_key,
             claims,

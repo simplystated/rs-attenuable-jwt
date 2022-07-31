@@ -131,7 +131,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
         .as_secs();
     let key_manager = SignKeyManager::new();
     let (pub_root_key, priv_root_key) = key_manager.generate_attenuation_key().unwrap();
-    let mut ajwt = AttenuableJWT::new_with_key_manager(
+    let mut ajwt = AttenuableJWT::with_root_key_and_claims(
         Cow::Borrowed(&key_manager),
         &priv_root_key,
         root_claims.clone(),
@@ -166,7 +166,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
             }) => {
                 // replace our private attenuation key with an incorrect attenuation key
                 let (_, bad_priv_key) = key_manager.generate_attenuation_key().unwrap();
-                ajwt = AttenuableJWT::with_key_manager(
+                ajwt = AttenuableJWT::with_jwts_and_attenuation_key(
                     Cow::Borrowed(&key_manager),
                     ajwt.jwts().to_vec(),
                     bad_priv_key,
@@ -291,7 +291,7 @@ fn run_ops(root_claims: HashMap<String, String>, ops: Vec<Operation>) {
                 let iss = Issuer(EXPECTED_ISSUER.to_owned());
                 let aud = Audience(EXPECTED_AUDIENCE.to_owned());
                 let (_, bad_key) = key_manager.generate_attenuation_key().unwrap();
-                let bad_key_ajwt = AttenuableJWT::with_key_manager(
+                let bad_key_ajwt = AttenuableJWT::with_jwts_and_attenuation_key(
                     Cow::Borrowed(&key_manager),
                     ajwt.jwts().to_vec(),
                     bad_key,
@@ -326,7 +326,7 @@ proptest! {
         };
         let key_manager = SignKeyManager::new();
         let (pub_root_key, priv_root_key) = key_manager.generate_attenuation_key().unwrap();
-        let mut ajwt = AttenuableJWT::new_with_key_manager(
+        let mut ajwt = AttenuableJWT::with_root_key_and_claims(
             Cow::Borrowed(&key_manager),
             &priv_root_key,
             root_claims
