@@ -13,7 +13,7 @@ readme = "README.md"
 [lib]
 
 [features]
-integration-test = ["ed25519", "rng"]
+default = ["ed25519", "rng"]
 ed25519 = ["ed25519-dalek"]
 rng = ["rand"]
 
@@ -31,3 +31,5 @@ rand_core = "0.5"
 mockall = "0.11.1"
 proptest = "1.0.0"
 ed25519 = { version = "1.5.2", features = ["pkcs8", "alloc"] }
+ed25519-dalek = { version = "1.0.1", features = ["rand"] }
+rand = { version = "0.7.3" }

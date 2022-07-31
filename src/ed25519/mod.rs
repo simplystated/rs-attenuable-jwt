@@ -4,8 +4,11 @@
 use std::convert::TryInto;
 
 use base64::URL_SAFE_NO_PAD;
+use ed25519_dalek::{
+    Keypair as Ed25519DalekKeyPair, PublicKey as Ed25519DalekPublicKey,
+    SecretKey as Ed25519DalekSecretKey, Signer, Verifier,
+};
 use serde::{Deserialize, Serialize};
-use ed25519_dalek::{Keypair as Ed25519DalekKeyPair, PublicKey as Ed25519DalekPublicKey, SecretKey as Ed25519DalekSecretKey, Verifier, Signer};
 
 use crate::protocol::{KeyUse, PrivateKey, PublicKey};
 
@@ -17,8 +20,8 @@ pub use ed25519_sign::EddsaKeyGen;
 pub const EDDSA_ALGORITHM: &str = "EdDSA";
 
 /// Private key for the ed25519 algorithm.
-#[derive(Serialize)]
-#[serde(into = "JWK")]
+#[derive(Serialize, Deserialize)]
+#[serde(into = "JWK", try_from = "JWK")]
 pub struct Ed25519PrivateKey {
     key_id: String,
     private_key: Ed25519DalekKeyPair,
@@ -53,7 +56,12 @@ impl PrivateKey for Ed25519PrivateKey {
     }
 
     fn sign(&self, message: &[u8]) -> crate::sign::Result<Vec<u8>> {
-        Ok(self.private_key.try_sign(message).map_err(|_| crate::sign::Error::CryptoError)?.to_bytes().to_vec())
+        Ok(self
+            .private_key
+            .try_sign(message)
+            .map_err(|_| crate::sign::Error::CryptoError)?
+            .to_bytes()
+            .to_vec())
     }
 }
 
@@ -97,7 +105,7 @@ impl Ed25519PublicKey {
 }
 
 /// JWK for [Ed25519PublicKey]s and [Ed25519PrivateKey]s.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct JWK {
     /// Key ID.
     pub kid: String,
@@ -119,8 +127,23 @@ pub struct JWK {
     pub d: Option<String>,
 }
 
+impl std::fmt::Debug for JWK {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JWK")
+            .field("kid", &self.kid)
+            .field("key_use", &self.key_use)
+            .field("key_ops", &self.key_ops)
+            .field("alg", &self.alg)
+            .field("kty", &self.kty)
+            .field("crv", &self.crv)
+            .field("x", &self.x)
+            .field("d", &self.d.as_ref().map(|_| "***"))
+            .finish()
+    }
+}
+
 /// Key operation.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
 pub enum KeyOp {
     /// Sign.
     #[serde(rename = "sign")]
@@ -166,10 +189,7 @@ impl From<&Ed25519PrivateKey> for JWK {
             kty: "OKP".to_owned(),
             crv: "Ed25519".to_owned(),
             alg: "EdDSA".to_owned(),
-            x: base64::encode_config(
-                k.private_key.public.as_bytes(),
-                URL_SAFE_NO_PAD,
-            ),
+            x: base64::encode_config(k.private_key.public.as_bytes(), URL_SAFE_NO_PAD),
             d: Some(base64::encode_config(
                 k.private_key.secret.as_bytes(),
                 URL_SAFE_NO_PAD,
@@ -193,6 +213,14 @@ impl TryFrom<&JWK> for Ed25519PublicKey {
     }
 }
 
+impl TryFrom<JWK> for Ed25519PrivateKey {
+    type Error = crate::verify::Error;
+
+    fn try_from(jwk: JWK) -> std::result::Result<Self, Self::Error> {
+        Ed25519PrivateKey::try_from(&jwk)
+    }
+}
+
 impl TryFrom<&JWK> for Ed25519PrivateKey {
     type Error = crate::verify::Error;
 
@@ -206,10 +234,7 @@ impl TryFrom<&JWK> for Ed25519PrivateKey {
                 .map_err(|_| crate::verify::Error::MalformedAttenuationKeyJWK)?;
             let secret = Ed25519DalekSecretKey::from_bytes(&d_bytes)
                 .map_err(|_| crate::verify::Error::MalformedAttenuationKeyJWK)?;
-            let keypair = Ed25519DalekKeyPair {
-                public,
-                secret,
-            };
+            let keypair = Ed25519DalekKeyPair { public, secret };
             Ok(Ed25519PrivateKey {
                 key_id: jwk.kid.clone(),
                 private_key: keypair,
@@ -232,7 +257,10 @@ mod test {
         let (_, priv_key) = kg.generate_attenuation_key()?;
         let jwk = JWK::from(&priv_key);
         let round_trip = Ed25519PrivateKey::try_from(&jwk)?;
-        assert_eq!(priv_key.private_key.to_bytes(), round_trip.private_key.to_bytes());
+        assert_eq!(
+            priv_key.private_key.to_bytes(),
+            round_trip.private_key.to_bytes()
+        );
         assert_eq!(&priv_key.key_id, &round_trip.key_id);
         Ok(())
     }
@@ -243,7 +271,10 @@ mod test {
         let (pub_key, _) = kg.generate_attenuation_key()?;
         let jwk = JWK::from(&pub_key);
         let round_trip = Ed25519PublicKey::try_from(&jwk)?;
-        assert_eq!(pub_key.public_key.as_bytes(), round_trip.public_key.as_bytes());
+        assert_eq!(
+            pub_key.public_key.as_bytes(),
+            round_trip.public_key.as_bytes()
+        );
         assert_eq!(&pub_key.key_id, &round_trip.key_id);
         Ok(())
     }

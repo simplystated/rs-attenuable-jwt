@@ -80,7 +80,7 @@ type GetKeyFn<'a> = Box<dyn FnOnce(Option<String>) -> Option<Box<dyn PublicKey +
 /// #   };
 /// #   let key_manager = KeyManager::new();
 /// #   let (pub_key, priv_key) = key_manager.generate_attenuation_key()?;
-/// #   let ajwt  = AttenuableJWT::new_with_key_manager(Cow::Borrowed(&key_manager), &priv_key, claims)?;
+/// #   let ajwt  = AttenuableJWT::with_root_key_and_claims(Cow::Borrowed(&key_manager), &priv_key, claims)?;
 /// #   let attenuated_claims = {
 /// #       let mut claims = HashMap::new();
 /// #       claims.insert("aud".to_owned(), "restricted-audience".to_owned());
@@ -469,7 +469,7 @@ impl<'a> Base64Content<'a> {
 mod test {
     use crate::{
         ed25519,
-        sign::{AttenuableJWT, Error as SignError, encode_jwt},
+        sign::{encode_jwt, AttenuableJWT, Error as SignError},
         verify::Error,
         AttenuationKeyGenerator, FullClaims, Issuer, PrivateKey, SealedClaims, SecondsSinceEpoch,
         SignedJWT, SigningKeyManager, VerificationKeyManager, VerificationRequirements,
@@ -520,7 +520,7 @@ mod test {
         let header = {
             let mut header = HashMap::new();
             header.insert("alg".to_owned(), sign_with.algorithm().to_owned());
-            header.insert("kid".to_owned(),sign_with.key_id().to_owned());
+            header.insert("kid".to_owned(), sign_with.key_id().to_owned());
             header
         };
         let claims: FullClaims<NextKeyJWK, HashMap<String, String>> =
@@ -536,7 +536,7 @@ mod test {
         let header = {
             let mut header = HashMap::new();
             header.insert("alg".to_owned(), sign_with.algorithm().to_owned());
-            header.insert("kid".to_owned(),sign_with.key_id().to_owned());
+            header.insert("kid".to_owned(), sign_with.key_id().to_owned());
             header
         };
         let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
@@ -555,14 +555,14 @@ mod test {
     fn test_wrong_aky_chain() -> Result<()> {
         let km = SignKeyManager::new();
         let (root_pub_key, root_priv_key) = km.generate_attenuation_key()?;
-        let ajwk = AttenuableJWT::new_with_key_manager(
+        let ajwk = AttenuableJWT::with_root_key_and_claims(
             Cow::Borrowed(&km),
             &root_priv_key,
             HashMap::new(),
         )
         .map_err(|err| Error::InvalidAttenuationKey(Box::new(err)))?;
         let (_, wrong_aky) = km.generate_attenuation_key()?;
-        let ajwk = AttenuableJWT::with_key_manager(
+        let ajwk = AttenuableJWT::with_jwts_and_attenuation_key(
             Cow::Borrowed(&km),
             ajwk.jwts().to_vec(),
             wrong_aky,
@@ -629,14 +629,14 @@ mod test {
     fn test_wrong_envelope_key() -> Result<()> {
         let km = SignKeyManager::new();
         let (_, root_priv_key) = km.generate_attenuation_key()?;
-        let ajwk = AttenuableJWT::new_with_key_manager(
+        let ajwk = AttenuableJWT::with_root_key_and_claims(
             Cow::Borrowed(&km),
             &root_priv_key,
             HashMap::new(),
         )
         .map_err(|err| Error::InvalidAttenuationKey(Box::new(err)))?;
         let (_, wrong_aky) = km.generate_attenuation_key()?;
-        let ajwk = AttenuableJWT::with_key_manager(
+        let ajwk = AttenuableJWT::with_jwts_and_attenuation_key(
             Cow::Borrowed(&km),
             ajwk.jwts().to_vec(),
             wrong_aky,
@@ -688,7 +688,7 @@ mod test {
         let header = {
             let mut header = HashMap::new();
             header.insert("alg".to_owned(), root_priv_key.algorithm().to_owned());
-            header.insert("kid".to_owned(),"wrong".to_owned());
+            header.insert("kid".to_owned(), "wrong".to_owned());
             header
         };
         let full_claims = SealedClaims {
@@ -721,7 +721,7 @@ mod test {
         let header = {
             let mut header = HashMap::new();
             header.insert("alg".to_owned(), root_priv_key.algorithm().to_owned());
-            header.insert("kid".to_owned(),root_priv_key.key_id().to_owned());
+            header.insert("kid".to_owned(), root_priv_key.key_id().to_owned());
             header
         };
         // no jwts claim
@@ -820,7 +820,7 @@ mod test {
 
     #[derive(Clone)]
     struct SignKeyManager {
-        key_gen: ed25519::EddsaKeyGen<rand::rngs::StdRng>
+        key_gen: ed25519::EddsaKeyGen<rand::rngs::StdRng>,
     }
 
     impl SignKeyManager {
