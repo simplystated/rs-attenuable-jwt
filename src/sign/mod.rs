@@ -29,7 +29,7 @@ pub use jwt::encode_jwt;
 /// struct KeyManager {
 ///     key_gen: ed25519::EddsaKeyGen<rand::rngs::StdRng>,
 /// }
-/// 
+///
 /// impl KeyManager {
 ///     pub fn new() -> Self {
 ///         Self {

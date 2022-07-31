@@ -364,7 +364,7 @@ proptest! {
 
 #[derive(Clone)]
 struct SignKeyManager {
-    key_gen: ed25519::EddsaKeyGen<rand::rngs::StdRng>
+    key_gen: ed25519::EddsaKeyGen<rand::rngs::StdRng>,
 }
 
 impl SignKeyManager {

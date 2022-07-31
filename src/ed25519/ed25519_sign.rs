@@ -1,7 +1,7 @@
 use std::ops::DerefMut;
-use std::sync::{Mutex, Arc};
+use std::sync::{Arc, Mutex};
 
-use rand_core::{RngCore, CryptoRng};
+use rand_core::{CryptoRng, RngCore};
 
 use crate::sign::Result;
 use crate::{protocol::AttenuationKeyGenerator, sign::Error};
@@ -34,7 +34,9 @@ impl EddsaKeyGen<rand::rngs::StdRng> {
     }
 }
 
-impl<RNG: RngCore + CryptoRng> AttenuationKeyGenerator<Ed25519PublicKey, Ed25519PrivateKey> for EddsaKeyGen<RNG> {
+impl<RNG: RngCore + CryptoRng> AttenuationKeyGenerator<Ed25519PublicKey, Ed25519PrivateKey>
+    for EddsaKeyGen<RNG>
+{
     fn generate_attenuation_key(&self) -> Result<(Ed25519PublicKey, Ed25519PrivateKey)> {
         let mut rng = self.rng.lock().map_err(|_| Error::CryptoError)?;
         let keypair = ed25519_dalek::Keypair::generate(rng.deref_mut());

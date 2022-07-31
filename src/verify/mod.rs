@@ -469,7 +469,7 @@ impl<'a> Base64Content<'a> {
 mod test {
     use crate::{
         ed25519,
-        sign::{AttenuableJWT, Error as SignError, encode_jwt},
+        sign::{encode_jwt, AttenuableJWT, Error as SignError},
         verify::Error,
         AttenuationKeyGenerator, FullClaims, Issuer, PrivateKey, SealedClaims, SecondsSinceEpoch,
         SignedJWT, SigningKeyManager, VerificationKeyManager, VerificationRequirements,
@@ -520,7 +520,7 @@ mod test {
         let header = {
             let mut header = HashMap::new();
             header.insert("alg".to_owned(), sign_with.algorithm().to_owned());
-            header.insert("kid".to_owned(),sign_with.key_id().to_owned());
+            header.insert("kid".to_owned(), sign_with.key_id().to_owned());
             header
         };
         let claims: FullClaims<NextKeyJWK, HashMap<String, String>> =
@@ -536,7 +536,7 @@ mod test {
         let header = {
             let mut header = HashMap::new();
             header.insert("alg".to_owned(), sign_with.algorithm().to_owned());
-            header.insert("kid".to_owned(),sign_with.key_id().to_owned());
+            header.insert("kid".to_owned(), sign_with.key_id().to_owned());
             header
         };
         let current_time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
@@ -688,7 +688,7 @@ mod test {
         let header = {
             let mut header = HashMap::new();
             header.insert("alg".to_owned(), root_priv_key.algorithm().to_owned());
-            header.insert("kid".to_owned(),"wrong".to_owned());
+            header.insert("kid".to_owned(), "wrong".to_owned());
             header
         };
         let full_claims = SealedClaims {
@@ -721,7 +721,7 @@ mod test {
         let header = {
             let mut header = HashMap::new();
             header.insert("alg".to_owned(), root_priv_key.algorithm().to_owned());
-            header.insert("kid".to_owned(),root_priv_key.key_id().to_owned());
+            header.insert("kid".to_owned(), root_priv_key.key_id().to_owned());
             header
         };
         // no jwts claim
@@ -820,7 +820,7 @@ mod test {
 
     #[derive(Clone)]
     struct SignKeyManager {
-        key_gen: ed25519::EddsaKeyGen<rand::rngs::StdRng>
+        key_gen: ed25519::EddsaKeyGen<rand::rngs::StdRng>,
     }
 
     impl SignKeyManager {

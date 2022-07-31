@@ -1,7 +1,10 @@
-use serde::Serialize;
 use base64::URL_SAFE_NO_PAD;
+use serde::Serialize;
 
-use crate::{PrivateKey, SignedJWT, sign::{Result, Error}};
+use crate::{
+    sign::{Error, Result},
+    PrivateKey, SignedJWT,
+};
 
 /// Encode a JWT with the given `header` and `claims`, signed with the given `signing_key`.
 /// Only exposed for integration testing.
