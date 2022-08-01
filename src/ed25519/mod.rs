@@ -36,6 +36,16 @@ impl Clone for Ed25519PrivateKey {
     }
 }
 
+impl PartialEq for Ed25519PrivateKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.key_id == other.key_id
+            && self.private_key.secret.as_bytes() == other.private_key.secret.as_bytes()
+            // public keys are uniquely derived from secret keys so it's ok to just compare the secret keys
+    }
+}
+
+impl Eq for Ed25519PrivateKey {}
+
 impl std::fmt::Debug for Ed25519PrivateKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Ed25519PrivateKey")
@@ -75,7 +85,7 @@ impl PrivateKey for Ed25519PrivateKey {
 }
 
 /// Public key for the ed25519 algorithm.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(into = "JWK", try_from = "JWK")]
 pub struct Ed25519PublicKey {
     key_id: String,
@@ -114,7 +124,7 @@ impl Ed25519PublicKey {
 }
 
 /// JWK for [Ed25519PublicKey]s and [Ed25519PrivateKey]s.
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct JWK {
     /// Key ID.
     pub kid: String,
@@ -152,7 +162,7 @@ impl std::fmt::Debug for JWK {
 }
 
 /// Key operation.
-#[derive(Clone, Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub enum KeyOp {
     /// Sign.
     #[serde(rename = "sign")]

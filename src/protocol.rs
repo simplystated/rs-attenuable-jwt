@@ -4,7 +4,7 @@ use erased_serde::Serialize as ErasedSerialize;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Newtype struct for a string representing a signed JWT.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(transparent)]
 pub struct SignedJWT(pub String);
 
@@ -16,7 +16,7 @@ impl AsRef<str> for SignedJWT {
 
 /// Claims for a sealed attenuated JWT.
 /// These are the claims of the JWT produced by [crate::sign::AttenuableJWT::seal].
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct SealedClaims {
     /// Expiration.
     pub exp: Option<SecondsSinceEpoch>,
@@ -32,13 +32,13 @@ pub(crate) struct SealedClaims {
 
 /// Newtype wrapper for the number of seconds elapsed since the unix epoch.
 /// Used in the `exp` and `nbf` claims of JWTs.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(transparent)]
 pub struct SecondsSinceEpoch(pub u64);
 
 /// Newtype wrapper for issuer identifiers.
 /// Used in the `iss` claim of JWTs.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(transparent)]
 pub struct Issuer(pub String);
 
@@ -50,7 +50,7 @@ impl AsRef<str> for Issuer {
 
 /// Newtype wrapper for audience identifiers.
 /// Used in the `aud` claim of JWTs.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(transparent)]
 pub struct Audience(pub String);
 
@@ -86,7 +86,7 @@ erased_serde::serialize_trait_object!(PublicKey);
 
 /// Key use identifiers.
 /// Used in the `use` claim of a JWK.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum KeyUse {
     /// Encryption.
     #[serde(rename = "enc")]
@@ -130,7 +130,7 @@ pub trait VerificationKeyManager: Clone {
 }
 
 /// JWT header.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct JWTHeader {
     /// Key ID for the key used to sign this JWT.
     #[serde(rename = "kid")]
@@ -141,7 +141,7 @@ pub(crate) struct JWTHeader {
 }
 
 /// Verification requirements to use when verifying a signed JWT.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VerificationRequirements {
     /// Verify the signature and provided claims for the JWT.
     VerifyClaims {
@@ -210,7 +210,7 @@ pub trait AttenuationKeyGenerator<
 }
 
 /// The full set of claims for an attenuated JWT, combining user-provided claims with the attenuation key claim.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FullClaims<JWK, Claims> {
     /// User-provided claims.
     #[serde(flatten)]

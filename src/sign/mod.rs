@@ -84,7 +84,7 @@ pub use jwt::encode_jwt;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Serialize, Clone, PartialEq)]
+#[derive(Serialize, Clone, PartialEq, Eq)]
 pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
     #[serde(skip)]
     key_manager: Cow<'a, SKM>,
@@ -284,7 +284,7 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
 ///     }
 /// }
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct AttenuableJWTData<PrivateAttenuationKey: PrivateKey> {
     jwts: Vec<SignedJWT>,
     private_attenuation_key: PrivateAttenuationKey,
