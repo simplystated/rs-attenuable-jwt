@@ -36,6 +36,15 @@ impl Clone for Ed25519PrivateKey {
     }
 }
 
+impl std::fmt::Debug for Ed25519PrivateKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ed25519PrivateKey")
+            .field("key_id", &self.key_id)
+            .field("private_key", &"***")
+            .finish()
+    }
+}
+
 impl Ed25519PrivateKey {
     /// Create an ed25519 private key.
     fn new(key_id: String, private_key: Ed25519DalekKeyPair) -> Self {
@@ -66,8 +75,8 @@ impl PrivateKey for Ed25519PrivateKey {
 }
 
 /// Public key for the ed25519 algorithm.
-#[derive(Serialize, Clone)]
-#[serde(into = "JWK")]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(into = "JWK", try_from = "JWK")]
 pub struct Ed25519PublicKey {
     key_id: String,
     public_key: Ed25519DalekPublicKey,
@@ -195,6 +204,14 @@ impl From<&Ed25519PrivateKey> for JWK {
                 URL_SAFE_NO_PAD,
             )),
         }
+    }
+}
+
+impl TryFrom<JWK> for Ed25519PublicKey {
+    type Error = crate::verify::Error;
+
+    fn try_from(value: JWK) -> Result<Self, Self::Error> {
+        Ed25519PublicKey::try_from(&value)
     }
 }
 

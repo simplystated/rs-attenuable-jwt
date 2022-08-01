@@ -84,7 +84,7 @@ pub use jwt::encode_jwt;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Serialize)]
+#[derive(Serialize, Clone, PartialEq)]
 pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
     #[serde(skip)]
     key_manager: Cow<'a, SKM>,
@@ -92,7 +92,15 @@ pub struct AttenuableJWT<'a, SKM: SigningKeyManager> {
     private_attenuation_key: SKM::PrivateAttenuationKey,
 }
 
-impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {}
+impl<'a, SKM: SigningKeyManager> std::fmt::Debug for AttenuableJWT<'a, SKM> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AttenuableJWT")
+            .field("key_manager", &"<key manager>")
+            .field("jwts", &self.jwts)
+            .field("private_attenuation_key", &"***")
+            .finish()
+    }
+}
 
 impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
     /// Constructs an AttenuableJWT from a chain of signed JWTs and a private_attenuation_key, using the provided [crate::SigningKeyManager].
@@ -276,7 +284,7 @@ impl<'a, SKM: SigningKeyManager> AttenuableJWT<'a, SKM> {
 ///     }
 /// }
 /// ```
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct AttenuableJWTData<PrivateAttenuationKey: PrivateKey> {
     jwts: Vec<SignedJWT>,
     private_attenuation_key: PrivateAttenuationKey,
